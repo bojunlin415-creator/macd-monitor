@@ -39,8 +39,8 @@ def _set_cookie(resp: Response, sid: str) -> None:
 
 
 def _send_email(to: str, subject: str, body: str) -> None:
-    # 寄信服務待選定（X-05）；開發環境寫入日誌
-    log.info("［寄信］%s｜%s｜%s", to, subject, body)
+    from app.notify.email import send_email
+    send_email(to, subject, body)
 
 
 @router.post("/email-link")
@@ -81,12 +81,14 @@ def accept_invite(body: TokenIn, request: Request, response: Response, db: Sessi
     now = datetime.now(timezone.utc)
     if inv is None or inv.used_at or _aware(inv.expires_at) < now:
         raise ApiError(400, "invalid_invite", "邀請連結無效或已過期，請聯絡管理員重新邀請。")
-    inv.used_at = now
     user = db.scalar(select(M.User).where(func.lower(M.User.email) == inv.email.lower()))
-    if user is None:
-        user = M.User(email=inv.email)
-        db.add(user)
-        db.flush()
+    if user is not None:
+        # 已有帳號不得以邀請連結登入，避免管理員藉邀請冒名登入
+        raise ApiError(409, "already_member", "此 Email 已經是成員，請改用登入連結。")
+    inv.used_at = now
+    user = M.User(email=inv.email)
+    db.add(user)
+    db.flush()
     sid, csrf = create_session(db, user)
     _set_cookie(response, sid)
     audit(db, user, "accept_invite", f"user:{user.id}")
@@ -108,6 +110,26 @@ def csrf(request: Request, user: M.User = Depends(current_user)):
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+class BootstrapIn(BaseModel):
+    email: EmailStr
+
+
+@router.post("/bootstrap-link")
+def bootstrap_link(body: BootstrapIn, request: Request, db: Session = Depends(get_db)):
+    """部署後首次登入：以 CRON_SECRET 驗證，只能為「管理員」產生一次性登入連結。"""
+    import hmac
+    auth = request.headers.get("Authorization", "")
+    if not settings.cron_secret or not hmac.compare_digest(auth, f"Bearer {settings.cron_secret}"):
+        raise ApiError(404, "not_found", "找不到這個頁面，或你沒有查看權限。")
+    user = db.scalar(select(M.User).where(func.lower(M.User.email) == body.email.lower(), M.User.role == "admin"))
+    if user is None or user.status != "active":
+        raise ApiError(404, "not_found", "找不到這個頁面，或你沒有查看權限。")
+    token = new_token()
+    db.add(M.LoginToken(token_hash=h(token), user_id=user.id, expires_at=datetime.now(timezone.utc) + LOGIN_TTL))
+    audit(db, None, "bootstrap_link", f"user:{user.id}")
+    return ok({"link": f"{settings.app_base_url}/login/verify?token={token}"}, request)
+
+
 @admin_router.post("/invitations")
 def invite(body: EmailIn, request: Request, admin: M.User = Depends(admin_user), db: Session = Depends(get_db)):
     token = new_token()
@@ -116,7 +138,9 @@ def invite(body: EmailIn, request: Request, admin: M.User = Depends(admin_user),
     link = f"{settings.app_base_url}/invite?token={token}"
     _send_email(body.email, "你受邀使用 MACD 監測系統", f"請在 7 天內點擊接受邀請：{link}")
     audit(db, admin, "invite", f"email:{body.email.split('@')[-1]}")
-    return ok({"message": "邀請已寄出，7 天內有效。", "dev_link": link if settings.is_dev else None}, request)
+    from app.notify.email import email_configured
+    msg = "邀請已寄出，7 天內有效。" if email_configured() else "尚未設定寄信服務，請把下方連結傳給受邀者（7 天內有效、單次使用）。"
+    return ok({"message": msg, "dev_link": link}, request)
 
 
 @admin_router.get("/members")

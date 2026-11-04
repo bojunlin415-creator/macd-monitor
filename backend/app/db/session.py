@@ -15,6 +15,9 @@ def make_engine(url: str | None = None):
     kw = {"future": True}
     if url.startswith("sqlite"):
         kw["connect_args"] = {"check_same_thread": False}
+    if url.startswith("postgresql"):
+        from sqlalchemy.pool import NullPool
+        kw["poolclass"] = NullPool  # 無伺服器環境：每次請求自行連線，交給 Neon／Supabase 連線池
     eng = create_engine(url, **kw)
     if url.startswith("sqlite"):
         @event.listens_for(eng, "connect")

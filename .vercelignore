@@ -1,0 +1,4 @@
+backend/tests
+backend/*.db
+**/__pycache__
+frontend/node_modules

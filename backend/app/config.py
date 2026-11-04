@@ -5,9 +5,18 @@ import os
 from dataclasses import dataclass, field
 
 
+def _db_url() -> str:
+    """支援 Vercel／Neon 注入的 postgres:// 連線字串。"""
+    url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "sqlite:///./macd_dev.db"
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 @dataclass(frozen=True)
 class Settings:
-    database_url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./macd_dev.db"))
+    database_url: str = field(default_factory=lambda: _db_url())
     app_base_url: str = field(default_factory=lambda: os.getenv("APP_BASE_URL", "http://localhost:5173"))
     env: str = field(default_factory=lambda: os.getenv("APP_ENV", "dev"))  # dev / test / prod
     secret_key: str = field(default_factory=lambda: os.getenv("SECRET_KEY", "dev-only-secret-change-me"))
@@ -15,6 +24,10 @@ class Settings:
     line_channel_secret: str = field(default_factory=lambda: os.getenv("LINE_CHANNEL_SECRET", ""))
     line_bot_basic_id: str = field(default_factory=lambda: os.getenv("LINE_BOT_BASIC_ID", ""))
     data_provider: str = field(default_factory=lambda: os.getenv("DATA_PROVIDER", "sample"))
+    cron_secret: str = field(default_factory=lambda: os.getenv("CRON_SECRET", ""))
+    admin_email: str = field(default_factory=lambda: os.getenv("ADMIN_EMAIL", ""))
+    resend_api_key: str = field(default_factory=lambda: os.getenv("RESEND_API_KEY", ""))
+    email_from: str = field(default_factory=lambda: os.getenv("EMAIL_FROM", "MACD 監測系統 <onboarding@resend.dev>"))
     # 測試環境禁止對正式成員推播：非 prod 一律走乾跑，除非明確開啟
     line_live: bool = field(default_factory=lambda: os.getenv("LINE_LIVE", "0") == "1")
 

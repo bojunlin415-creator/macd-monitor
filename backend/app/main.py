@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import admin, auth, line, me, positions, signals
+from app.api import admin, auth, cron, line, me, positions, signals
 from app.api.deps import ApiError, api_error_handler
 from app.db.session import init_db
 
@@ -22,7 +22,20 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(_app):
     init_db()
+    _bootstrap()
     yield
+
+
+def _bootstrap() -> None:
+    """建立市場與示意股票；若設定 ADMIN_EMAIL 則建立管理員（冪等）。"""
+    from app.config import settings
+    from app.db.session import session_scope
+    from app.seed import seed
+    try:
+        with session_scope() as db:
+            seed(db, settings.admin_email or None)
+    except Exception:
+        logging.getLogger("api").exception("初始化資料失敗")
 
 
 app = FastAPI(title="MACD 監測系統 API", version="1.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json",
@@ -66,7 +79,7 @@ async def unhandled(request: Request, exc: Exception):
                         "error": {"code": "internal", "message": "系統發生錯誤，請稍後再試。", "retryable": True}})
 
 
-for r in (auth.router, auth.admin_router, me.router, signals.router, positions.router, line.router, admin.router):
+for r in (auth.router, auth.admin_router, me.router, signals.router, positions.router, line.router, admin.router, cron.router):
     app.include_router(r, prefix="/api/v1")
 
 

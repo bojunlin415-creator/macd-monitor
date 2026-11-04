@@ -152,3 +152,27 @@ def test_admin_flow_and_overview(env):
     n = TestClient(app)
     assert n.post("/api/v1/auth/accept-invite", json={"token": tok}).status_code == 200
     assert TestClient(app).post("/api/v1/auth/accept-invite", json={"token": tok}).status_code == 400
+
+
+def test_invite_cannot_log_into_existing_account(env):
+    a = login("admin@example.com")
+    r = a.post("/api/v1/admin/invitations", json={"email": "member@example.com"})
+    tok = r.json()["data"]["dev_link"].split("token=")[1]
+    r = TestClient(app).post("/api/v1/auth/accept-invite", json={"token": tok})
+    assert r.status_code == 409
+
+
+def test_cron_and_bootstrap_require_secret(env, monkeypatch):
+    from app import config
+    c = TestClient(app)
+    assert c.get("/api/v1/cron/dispatch").status_code == 404
+    object.__setattr__(config.settings, "cron_secret", "s3cret")
+    request_cleanup = lambda: object.__setattr__(config.settings, "cron_secret", "")  # noqa: E731
+    monkeypatch.setattr("app.api.cron.ok", __import__("app.api.deps", fromlist=["ok"]).ok)  # 保持匯入
+
+    assert c.get("/api/v1/cron/dispatch", headers={"Authorization": "Bearer nope"}).status_code == 404
+    r = c.post("/api/v1/auth/bootstrap-link", json={"email": "member@example.com"}, headers={"Authorization": "Bearer s3cret"})
+    assert r.status_code == 404  # 只能為管理員產生
+    r = c.post("/api/v1/auth/bootstrap-link", json={"email": "admin@example.com"}, headers={"Authorization": "Bearer s3cret"})
+    assert r.status_code == 200 and "token=" in r.json()["data"]["link"]
+    request_cleanup()
