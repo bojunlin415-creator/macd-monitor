@@ -117,6 +117,14 @@ function ValueTable({ weeks }: { weeks: Week[] }) {
   );
 }
 
+// 週 K 以週一為時間點；游標顯示整週日期，避免誤以為資料只到週一
+function weekLabel(tm: any): string {
+  const iso = typeof tm === "string" ? tm : `${tm.year}-${String(tm.month).padStart(2, "0")}-${String(tm.day).padStart(2, "0")}`;
+  const d = new Date(iso + "T00:00:00"), e = new Date(d);
+  e.setDate(d.getDate() + 4);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}～${p(e.getMonth() + 1)}/${p(e.getDate())} 當週`;
+}
 const LEVEL_VAR: Record<string, string> = { observe: "--observe", attention: "--attention", warning: "--warning", candidate: "--candidate" };
 
 // 週 K＋均線、成交量、MACD 三區，時間軸與游標同步；鍵盤左右鍵逐週移動
@@ -135,7 +143,7 @@ function WeeklyChart({ data }: { data: WeeklyData }) {
     const base = { layout: { background: { color: "transparent" }, textColor: text, fontFamily: "Noto Sans TC, sans-serif" },
       grid: { vertLines: { color: line }, horzLines: { color: line } }, rightPriceScale: { borderColor: line },
       timeScale: { borderColor: line }, autoSize: true,
-      localization: { locale: "zh-TW", timeFormatter: (tm: any) => (typeof tm === "string" ? tm.replace(/-/g, "/") : `${tm.year}/${tm.month}/${tm.day}`) } };
+      localization: { locale: "zh-TW", timeFormatter: weekLabel } };
     const heights = [320, 110, 170];
     const cs = refs.map((r, i) => createChart(r.current!, { ...base, height: heights[i], timeScale: { ...base.timeScale, visible: i === 2 } }));
     charts.current = cs;
