@@ -371,9 +371,9 @@ def _xlsx(sheets: dict[str, list[tuple]]) -> bytes:
 
 def test_xlsx_import_all_rows(env, monkeypatch):
     from app.api import me
-    from app.providers.infoway import InfowayJapanProvider
+    from app.providers.jquants import JQuantsJapanProvider
     from app.providers import get_provider as real
-    monkeypatch.setattr(me, "get_provider", lambda m=None: InfowayJapanProvider("k") if m == "JP" else real(m))
+    monkeypatch.setattr(me, "get_provider", lambda m=None: JQuantsJapanProvider("k") if m == "JP" else real(m))
     data = _xlsx({
         "日A": [("極洋", 1301, "FF00B0F0"), ("日本水産", 1332, "FFFFFF00"), ("極洋", 1301, None)],
         "日B": [("ケアサービス", 2425, None), ("新興", "130A", "FF92D050"), ("錯誤", "12", None)],
@@ -392,7 +392,7 @@ def test_xlsx_import_all_rows(env, monkeypatch):
     assert c.get("/api/v1/watchlist").json()["data"]["used"] == 4
     with env() as db:
         inst = db.scalar(select(M.Instrument).where(M.Instrument.symbol == "1301"))
-        assert inst.market_id == "JP" and inst.name == "極洋" and inst.license_status == "infoway"
+        assert inst.market_id == "JP" and inst.name == "極洋" and inst.license_status == "jquants"
 
 
 def test_xlsx_unknown_symbol_without_open_provider(env):

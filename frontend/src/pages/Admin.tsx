@@ -16,7 +16,7 @@ export default function Admin() {
       </div>
       {tab === "jobs" && <Jobs />}
       {tab === "members" && <Members />}
-      {tab === "license" && <div className="card"><p>台股、美股目前使用<strong>示意資料</strong>（虛構代號）。日股在設定 Infoway 金鑰後改用<strong>Infoway 日線</strong>（東證主要權值股 40 檔，未還原權值）。</p><p className="small muted">供應商、授權範圍（展示、非展示、LINE 轉送、匯出）待確認（X-02、X-03）。未取得授權前，匯出功能保持停用。</p></div>}
+      {tab === "license" && <div className="card"><p>台股、美股目前使用<strong>示意資料</strong>（虛構代號）。日股在設定 J-Quants 金鑰後改用<strong>J-Quants 日線</strong>（東證，依調整係數還原權值；可匯入清單外的股票）。</p><p className="small muted">供應商、授權範圍（展示、非展示、LINE 轉送、匯出）待確認（X-02、X-03）。未取得授權前，匯出功能保持停用。</p></div>}
       {tab === "audit" && <Audit />}
     </>
   );

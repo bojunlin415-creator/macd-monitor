@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import models as M
@@ -44,9 +44,20 @@ def sync_instruments(db: Session, provider: MarketDataProvider, market: str) -> 
                                 currency=info.currency, lot_size=info.lot_size, license_status=provider.source))
         elif inst.delisted_on is not None and inst.license_status == provider.source:
             inst.delisted_on = None
+    open_universe = hasattr(provider, "make_instrument")  # 可接受清單外代號（使用者匯入的股票）
     for inst in db.scalars(select(M.Instrument).where(M.Instrument.market_id == market, M.Instrument.delisted_on.is_(None))):
-        if inst.license_status != provider.source and inst.symbol not in listed:
-            inst.delisted_on = date.today()
+        if inst.license_status == provider.source:
+            continue
+        if inst.license_status == "sample":
+            if inst.symbol not in listed:
+                inst.delisted_on = date.today()
+        elif open_universe:
+            # 換成另一個真實行情來源：保留股票與自選，舊來源的日線刪掉，下次作業由新來源重新回補
+            db.execute(delete(M.DailyBarRow).where(M.DailyBarRow.instrument_id == inst.id))
+            db.execute(delete(M.CorporateActionRow).where(M.CorporateActionRow.instrument_id == inst.id))
+            inst.license_status = provider.source
+            inst.state = "backfilling"
+        # 其餘情況（金鑰暫時沒設、退回示意資料）不動真實來源的股票，避免使用者的自選被下架
 
 
 def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of: date,

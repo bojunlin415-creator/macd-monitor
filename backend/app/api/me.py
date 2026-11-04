@@ -169,7 +169,7 @@ def _xlsx_entries(raw: bytes) -> list[dict]:
 
 
 def _open_provider(market: str):
-    """可以接受清單外代號的行情來源（例如 Infoway 日股），讓匯入時自動新增股票。"""
+    """可以接受清單外代號的行情來源（例如 J-Quants 日股），讓匯入時自動新增股票。"""
     p = get_provider(market)
     return p if hasattr(p, "make_instrument") else None
 
