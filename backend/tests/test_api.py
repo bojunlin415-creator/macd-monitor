@@ -18,6 +18,8 @@ def env(monkeypatch):
     M.Base.metadata.create_all(eng)
     Factory = sessionmaker(bind=eng, expire_on_commit=False)
     monkeypatch.setattr(deps, "SessionLocal", Factory)
+    from app import main
+    main._hits.clear()  # 每個測試重新計算流量限制
     with Factory() as db:
         seed(db, "admin@example.com")
         db.add(M.User(email="member@example.com"))
