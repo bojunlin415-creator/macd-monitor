@@ -1,20 +1,44 @@
 {
+  "regions": [
+    "sin1"
+  ],
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "cd frontend && npm ci",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "functions": {
-    "api/index.py": { "maxDuration": 300, "includeFiles": "backend/app/**" }
+    "api/index.py": {
+      "maxDuration": 300,
+      "includeFiles": "backend/app/**"
+    }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "crons": [
-    { "path": "/api/v1/cron/market/TW", "schedule": "0 6 * * 1-5" },
-    { "path": "/api/v1/cron/market/JP", "schedule": "0 7 * * 1-5" },
-    { "path": "/api/v1/cron/market/US", "schedule": "0 22 * * 1-5" },
-    { "path": "/api/v1/cron/summary", "schedule": "0 4 * * 6" }
+    {
+      "path": "/api/v1/cron/market/TW",
+      "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/v1/cron/market/JP",
+      "schedule": "0 7 * * 1-5"
+    },
+    {
+      "path": "/api/v1/cron/market/US",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/v1/cron/summary",
+      "schedule": "0 4 * * 6"
+    }
   ]
 }
