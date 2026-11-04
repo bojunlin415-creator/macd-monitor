@@ -18,7 +18,7 @@ export default function Watchlist() {
   const [group, setGroup] = useState("");
   if (loading && !data) return <Skeleton />;
   if (!data) return error ? <ErrorBox error={error} onRetry={reload} /> : null;
-  const items = data.items.filter((w) => (!stateFilter || w.instrument.state === stateFilter) && (!group || w.group === group));
+  const items = data.items.filter((w) => (!stateFilter || w.instrument.state === stateFilter || (stateFilter === "quality_failed" && w.instrument.state === "unavailable")) && (!group || w.group === group));
   async function remove(id: string) {
     try { await api(`/watchlist/${id}`, { method: "DELETE" }); setToast("已移除。已發出的訊號與持股不受影響。"); reload(); }
     catch (e) { setToast((e as ApiError).message); }
@@ -31,7 +31,7 @@ export default function Watchlist() {
         <h1>自選</h1>
         <QuotaBar used={data.used} limit={data.limit} />
         <button className="btn primary" disabled={full} onClick={() => setAdding(true)}>新增股票</button>
-        <button className="btn" disabled={full} onClick={() => setImporting(true)}>從 CSV 匯入</button>
+        <button className="btn" disabled={full} onClick={() => setImporting(true)}>匯入 Excel／CSV</button>
       </div>
       {data.groups.length > 0 && (
         <div className="chipgroup" style={{ marginBottom: 16 }}>
@@ -96,7 +96,7 @@ function AddModal({ open, onClose, used, limit, groups, onDone }: { open: boolea
   );
 }
 
-interface PreviewRow { line: number; market: string; symbol: string; group: string | null; kind: string; reason?: string; name?: string }
+interface PreviewRow { line: number; where?: string; market: string; symbol: string; group: string | null; kind: string; reason?: string; name?: string; new?: boolean }
 function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (n: number) => void }) {
   const [preview, setPreview] = useState<{ preview_id: string; rows: PreviewRow[]; used: number; limit: number } | null>(null);
   const [checked, setChecked] = useState<Set<number>>(new Set());
@@ -120,11 +120,12 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
   const over = preview ? preview.used + checked.size - preview.limit : 0;
   const tabs = [["ok", "可加入"], ["duplicate", "重複"], ["error", "錯誤"]];
   return (
-    <Modal open={open} onClose={onClose} title="從 CSV 匯入">
+    <Modal open={open} onClose={onClose} title="匯入 Excel／CSV">
       <div className="stack">
-        <p className="small muted">欄位：market, symbol, group, fast, slow, signal（UTF-8，上限 1 MB／1,000 列）。market 為 TW、US 或 JP。</p>
+        <p className="small muted">Excel（.xlsx）：每個工作表要有「股號」與「公司名稱」欄，每列一檔股票，其他欄位不影響匯入。工作表名稱含「日」視為日股。</p>
+        <p className="small muted">CSV：欄位 market, symbol, group, fast, slow, signal（UTF-8）。market 為 TW、US 或 JP。檔案上限 5 MB／1,000 檔。</p>
         <a className="small" href={"data:text/csv;charset=utf-8,%EF%BB%BFmarket,symbol,group,fast,slow,signal%0ATW,T001,半導體,,,%0A"} download="自選匯入範本.csv">下載範本</a>
-        <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} aria-label="選擇 CSV 檔" />
+        <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} aria-label="選擇 Excel 或 CSV 檔" />
         {preview && <>
           <div className="tabs" role="tablist">{tabs.map(([k, l]) => <button key={k} role="tab" className="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{l}（{preview.rows.filter((r) => r.kind === k).length}）</button>)}</div>
           <div style={{ maxHeight: 260, overflowY: "auto" }}>
@@ -132,12 +133,12 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
               {preview.rows.filter((r) => r.kind === tab).map((r) => (
                 <tr key={r.line}>
                   <td>{tab === "ok" && <input type="checkbox" checked={checked.has(r.line)} onChange={() => { const n = new Set(checked); n.has(r.line) ? n.delete(r.line) : n.add(r.line); setChecked(n); }} aria-label={`第 ${r.line} 列`} />}</td>
-                  <td>第 {r.line} 列</td><td>{MARKET[r.market] ?? r.market} {r.symbol} {r.name ?? ""}</td><td className="muted">{r.reason ?? r.group ?? ""}</td>
+                  <td>{r.where ?? `第 ${r.line} 列`}</td><td>{MARKET[r.market] ?? r.market} {r.symbol} {r.name ?? ""}{r.new && <span className="muted">（新增）</span>}</td><td className="muted">{r.reason ?? r.group ?? ""}</td>
                 </tr>
               ))}
             </tbody></table>
           </div>
-          {over > 0 && <p role="alert" className="err">超過 200 檔上限，請再取消勾選 {over} 檔。</p>}
+          {over > 0 && <p role="alert" className="err">超過 {preview.limit} 檔上限，請再取消勾選 {over} 檔。</p>}
         </>}
         {err && <p role="alert" className="err">{err}</p>}
         <div className="row"><button className="btn" onClick={onClose}>取消</button><button className="btn primary" disabled={!preview || checked.size === 0 || over > 0} onClick={commit}>提交 {checked.size} 檔</button></div>

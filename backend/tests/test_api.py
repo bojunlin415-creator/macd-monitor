@@ -346,3 +346,57 @@ def test_admin_sets_plan_and_expiry_falls_back(env):
     assert c.get("/api/v1/me/membership").json()["data"]["plan"]["id"] == "free"
     # 一般成員不能改方案
     assert c.put(f"/api/v1/admin/members/{row['id']}/plan", json={"plan": "pro"}).status_code == 404
+
+
+def _xlsx(sheets: dict[str, list[tuple]]) -> bytes:
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill
+    wb = Workbook()
+    wb.remove(wb.active)
+    for title, rows in sheets.items():
+        ws = wb.create_sheet(title)
+        ws.append(["公司名稱", "中英文名稱", "股號", "產業"])
+        for name, code, color in rows:
+            ws.append([name, "", code, ""])
+            if color:
+                for cell in ws[ws.max_row]:
+                    cell.fill = PatternFill("solid", fgColor=color)
+        ws.append(["昂貴", None, "中價", None])  # 圖例列：沒有股號，應略過
+        ws.append(["藍綠色買,黃色自己斟酌,橘紅色賣出"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_xlsx_import_all_rows(env, monkeypatch):
+    from app.api import me
+    from app.providers.infoway import InfowayJapanProvider
+    from app.providers import get_provider as real
+    monkeypatch.setattr(me, "get_provider", lambda m=None: InfowayJapanProvider("k") if m == "JP" else real(m))
+    data = _xlsx({
+        "日A": [("極洋", 1301, "FF00B0F0"), ("日本水産", 1332, "FFFFFF00"), ("極洋", 1301, None)],
+        "日B": [("ケアサービス", 2425, None), ("新興", "130A", "FF92D050"), ("錯誤", "12", None)],
+    })
+    c = login("member@example.com")
+    r = c.post("/api/v1/watchlist/import-preview",
+               files={"file": ("日經成分股.xlsx", data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert [(row["symbol"], row["kind"]) for row in d["rows"]] == [
+        ("1301", "ok"), ("1332", "ok"), ("1301", "duplicate"), ("2425", "ok"), ("130A", "ok"), ("12", "error")]
+    assert d["rows"][0]["where"] == "日A 第 2 列"
+    ok_lines = [row["line"] for row in d["rows"] if row["kind"] == "ok"]
+    r = c.post("/api/v1/watchlist/import-commit", json={"preview_id": d["preview_id"], "selected_lines": ok_lines})
+    assert r.json()["data"]["added"] == 4
+    assert c.get("/api/v1/watchlist").json()["data"]["used"] == 4
+    with env() as db:
+        inst = db.scalar(select(M.Instrument).where(M.Instrument.symbol == "1301"))
+        assert inst.market_id == "JP" and inst.name == "極洋" and inst.license_status == "infoway"
+
+
+def test_xlsx_unknown_symbol_without_open_provider(env):
+    data = _xlsx({"日A": [("極洋", 1301, "FF00B0F0")]})
+    c = login("member@example.com")
+    d = c.post("/api/v1/watchlist/import-preview", files={"file": ("a.xlsx", data, "application/octet-stream")}).json()["data"]
+    assert d["rows"][0]["kind"] == "error" and d["rows"][0]["reason"] == "找不到此股票代碼"

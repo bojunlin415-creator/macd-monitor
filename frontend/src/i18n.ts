@@ -30,6 +30,7 @@ export const INSTRUMENT_STATE: Record<string, string> = {
   backfilling: "準備中：補抓歷史資料",
   warmup: "暖機中",
   quality_failed: "無法判斷：資料不完整",
+  unavailable: "無法取得：資料來源未開放這檔股票",
   ready: "監測中",
 };
 export const DATA_STATE: Record<string, string> = { ok: "正常", stale: "延遲", error: "異常" };

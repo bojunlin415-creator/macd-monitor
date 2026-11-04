@@ -52,6 +52,10 @@ class InfowayJapanProvider:
     def instruments(self, market: str) -> list[InstrumentInfo]:
         return [InstrumentInfo("JP", "XTKS", code, name, "JPY", 100) for code, name in JP_UNIVERSE]
 
+    def make_instrument(self, symbol: str, name: str | None = None) -> InstrumentInfo:
+        """清單外的東證代號（使用者匯入）；代號錯誤時抓日 K 會回 508，該檔標記為資料異常。"""
+        return InstrumentInfo("JP", "XTKS", symbol, (name or symbol)[:80], "JPY", 100)
+
     def sessions(self, market: str, start: date, end: date) -> list[Session]:
         return weekday_sessions(start, end, jpx_holidays(start, end))
 

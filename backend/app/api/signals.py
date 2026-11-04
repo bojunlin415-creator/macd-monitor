@@ -156,7 +156,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
     watched = db.scalars(select(M.WatchlistItem).where(M.WatchlistItem.user_id == user.id)).all()
     this_weeks = list(latest_week.values())
     counts = {"watched": len(watched), "limit": plan_of(db, user).watch_limit, "provisional": 0, "confirmed": 0,
-              "unable": sum(1 for w in watched if w.instrument.state == "quality_failed"),
+              "unable": sum(1 for w in watched if w.instrument.state in ("quality_failed", "unavailable")),
               "preparing": sum(1 for w in watched if w.instrument.state in ("backfilling", "warmup"))}
     if this_weeks:
         rows = db.execute(select(M.SignalEvent.status, func.count()).where(

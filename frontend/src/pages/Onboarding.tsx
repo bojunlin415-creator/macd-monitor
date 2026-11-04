@@ -52,7 +52,7 @@ export default function Onboarding() {
           <h1>加入第一批股票</h1>
           <QuotaBar used={used + selected.length} limit={200} />
           <StockPicker selected={selected} onChange={setSelected} />
-          <p className="small muted">也可以稍後在「自選」頁從 CSV 匯入。</p>
+          <p className="small muted">也可以稍後在「自選」頁匯入 Excel 或 CSV。</p>
           {err && <p role="alert" className="err">{err}</p>}
           <div className="row">
             <button className="btn" onClick={() => setStep(1)} disabled={!!me?.consent_version}>上一步</button>

@@ -8,3 +8,4 @@ python-multipart>=0.0.9
 cryptography>=42
 tzdata>=2024.1
 holidays>=0.60
+openpyxl>=3.1

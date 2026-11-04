@@ -81,7 +81,7 @@ def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of:
         try:
             fetched = provider.daily_bars(market, inst.symbol, fetch_from, as_of)
         except ProviderError as e:  # 單一標的失敗（無權限、查無代號）不影響其他股票
-            inst.state = "quality_failed"
+            inst.state = "unavailable"
             errors.append(f"{inst.symbol}: {e}")
             continue
         for b in fetched:
@@ -304,7 +304,8 @@ def evaluate_market(db: Session, provider: MarketDataProvider, market: str, as_o
         inst = db.get(M.Instrument, inst_id)
         bars, acts, sess = load_series(db, inst, as_of)
         if not bars:
-            inst.state = "backfilling"
+            if inst.state != "unavailable":  # 來源拒絕（無權限、查無代號）時保留原因，不顯示成準備中
+                inst.state = "backfilling"
             continue
         cache: dict[str, Computation] = {}
         try:
