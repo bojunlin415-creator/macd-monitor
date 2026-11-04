@@ -14,7 +14,8 @@ from app.engine.signals import PRIORITY, SIGNAL_DEFS
 from app.engine.weekly import week_key
 from app.i18n import zh_tw as T
 from app.api.deps import ApiError, current_user, get_db, ok
-from app.api.me import WATCH_LIMIT, instrument_dict, _latest_rule
+from app.api.me import instrument_dict, _latest_rule
+from app.membership import plan_of
 from app.workers.pipeline import compute, load_series
 
 router = APIRouter(tags=["signals"])
@@ -154,7 +155,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
             risk.append(event_dict(db, ev, holdings))
     watched = db.scalars(select(M.WatchlistItem).where(M.WatchlistItem.user_id == user.id)).all()
     this_weeks = list(latest_week.values())
-    counts = {"watched": len(watched), "limit": WATCH_LIMIT, "provisional": 0, "confirmed": 0,
+    counts = {"watched": len(watched), "limit": plan_of(db, user).watch_limit, "provisional": 0, "confirmed": 0,
               "unable": sum(1 for w in watched if w.instrument.state == "quality_failed"),
               "preparing": sum(1 for w in watched if w.instrument.state in ("backfilling", "warmup"))}
     if this_weeks:

@@ -41,7 +41,8 @@ def login(email):
     return c
 
 
-def test_uninvited_gets_same_message_and_no_link(env):
+def test_uninvited_gets_same_message_and_no_link(env, monkeypatch):
+    monkeypatch.setenv("SIGNUP_MODE", "invite")
     c = TestClient(app)
     r = c.post("/api/v1/auth/email-link", json={"email": "stranger@example.com"})
     assert r.status_code == 200 and r.json()["data"]["dev_link"] is None
@@ -65,6 +66,7 @@ def test_watchlist_quota_and_isolation(env):
 def test_quota_limit_200(env):
     with env() as db:
         u = db.scalar(select(M.User).where(M.User.email == "member@example.com"))
+        db.add(M.Membership(user_id=u.id, plan="pro"))
         for i in range(199):
             inst = M.Instrument(market_id="TW", mic="XTAI", symbol=f"Z{i:03d}", name="測試", currency="TWD")
             db.add(inst)
@@ -221,6 +223,7 @@ def test_google_login_existing_member(env, monkeypatch, google_off):
 
 
 def test_google_login_rejects_uninvited_and_bad_state(env, monkeypatch, google_off):
+    monkeypatch.setenv("SIGNUP_MODE", "invite")
     _c, finish = _google(monkeypatch)
     assert finish("stranger@example.com").headers["location"] == "/login?error=not_invited"
     _c, finish = _google(monkeypatch)
@@ -247,7 +250,7 @@ def test_google_login_accepts_invitation(env, monkeypatch, google_off):
 
 def test_google_disabled_by_default(env):
     r = TestClient(app).get("/api/v1/auth/providers")
-    assert r.json()["data"] == {"google": False}
+    assert r.json()["data"] == {"google": False, "signup_mode": "open"}
 
 
 # ---- LINE 綁定 Webhook ----
@@ -281,3 +284,65 @@ def test_line_webhook_binds_and_replies(env, monkeypatch):
         assert bad.status_code == 401
     finally:
         object.__setattr__(settings, "line_channel_secret", "")
+
+
+# ---- 會員制：自行註冊、核准、方案額度 ----
+def test_open_signup_by_email_creates_free_member(env):
+    c = login("newbie@example.com")
+    me = c.get("/api/v1/me").json()["data"]
+    assert me["email"] == "newbie@example.com" and me["role"] == "member" and me["plan"]["id"] == "free"
+    m = c.get("/api/v1/me/membership").json()["data"]
+    assert m["plan"]["watch_limit"] == 50 and m["payments_enabled"] is False
+    # 免費會員也能綁定 LINE
+    assert c.post("/api/v1/line/link").status_code in (200, 503)
+
+
+def test_free_plan_watch_limit(env):
+    with env() as db:
+        u = db.scalar(select(M.User).where(M.User.email == "member@example.com"))
+        for i in range(49):
+            inst = M.Instrument(market_id="TW", mic="XTAI", symbol=f"Z{i:03d}", name="測試", currency="TWD")
+            db.add(inst)
+            db.flush()
+            db.add(M.WatchlistItem(user_id=u.id, instrument_id=inst.id))
+        db.commit()
+    c = login("member@example.com")
+    inst = c.get("/api/v1/instruments", params={"market": "US"}).json()["data"]
+    r = c.post("/api/v1/watchlist", json={"instrument_ids": [inst[0]["id"], inst[1]["id"]]})
+    assert r.status_code == 409 and "免費會員的自選股上限是 50 檔" in r.json()["error"]["message"]
+
+
+def test_approval_mode_requires_admin(env, monkeypatch):
+    monkeypatch.setenv("SIGNUP_MODE", "approval")
+    c = TestClient(app)
+    link = c.post("/api/v1/auth/email-link", json={"email": "applicant@example.com"}).json()["data"]["dev_link"]
+    r = c.post("/api/v1/auth/verify", json={"token": link.split("token=")[1]})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "pending_approval"
+    admin = login("admin@example.com")
+    row = next(u for u in admin.get("/api/v1/admin/members").json()["data"] if u["email"] == "applicant@example.com")
+    assert row["status"] == "pending"
+    assert admin.put(f"/api/v1/admin/members/{row['id']}/status", json={"status": "active"}).status_code == 200
+    login("applicant@example.com")
+
+
+def test_google_open_signup(env, monkeypatch, google_off):
+    c, finish = _google(monkeypatch)
+    assert finish("gnew@example.com").headers["location"] == "/"
+    assert c.get("/api/v1/me").json()["data"]["plan"]["id"] == "free"
+
+
+def test_admin_sets_plan_and_expiry_falls_back(env):
+    from datetime import datetime, timezone
+    admin = login("admin@example.com")
+    row = next(u for u in admin.get("/api/v1/admin/members").json()["data"] if u["email"] == "member@example.com")
+    assert row["plan"] == "free"
+    assert admin.put(f"/api/v1/admin/members/{row['id']}/plan", json={"plan": "nope"}).status_code == 422
+    assert admin.put(f"/api/v1/admin/members/{row['id']}/plan", json={"plan": "pro"}).status_code == 200
+    c = login("member@example.com")
+    assert c.get("/api/v1/me/membership").json()["data"]["plan"]["id"] == "pro"
+    with env() as db:
+        db.get(M.Membership, row["id"]).current_period_end = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        db.commit()
+    assert c.get("/api/v1/me/membership").json()["data"]["plan"]["id"] == "free"
+    # 一般成員不能改方案
+    assert c.put(f"/api/v1/admin/members/{row['id']}/plan", json={"plan": "pro"}).status_code == 404

@@ -4,6 +4,7 @@ import { api } from "./api";
 export interface Me {
   id: string; email: string; display_name: string; role: string; theme: string; updown_color: string; table_density: string;
   consent_version: string | null; consent_required: string; onboarding_done: boolean;
+  plan: { id: string; name: string };
   line: { status: string; linked_at: string | null };
   notify: { muted_codes: string[]; merge_threshold: number; weekly_summary: boolean; paused_until: string | null; mandatory_codes: string[] };
 }

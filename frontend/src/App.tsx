@@ -12,6 +12,7 @@ import Watchlist from "./pages/Watchlist";
 import Positions from "./pages/Positions";
 import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
+import Membership from "./pages/Membership";
 import More, { Backtest, DataHelp } from "./pages/More";
 
 const NAV = [
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/instruments/:id" element={<Protected><InstrumentPage /></Protected>} />
         <Route path="/watchlist" element={<Protected><Watchlist /></Protected>} />
         <Route path="/positions" element={<Protected><Positions /></Protected>} />
+        <Route path="/membership" element={<Protected><Membership /></Protected>} />
         <Route path="/backtest" element={<Protected><Backtest /></Protected>} />
         <Route path="/settings" element={<Protected><Settings /></Protected>} />
         <Route path="/admin" element={<Protected><Admin /></Protected>} />

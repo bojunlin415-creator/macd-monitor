@@ -16,7 +16,8 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 const LOGIN_ERRORS: Record<string, string> = {
-  not_invited: "這個 Google 帳號還沒有受邀。請先請管理員邀請你的 Gmail，再用 Google 登入。",
+  not_invited: "這個 Google 帳號還沒有受邀，或已被停用。請聯絡管理員。",
+  pending_approval: "已收到你的申請，管理員核准後即可登入。",
   google_failed: "Google 登入沒有完成，請再試一次。",
   google_cancelled: "已取消 Google 登入。",
   google_disabled: "Google 登入尚未開放，請改用 Email 登入連結。",
@@ -25,8 +26,10 @@ const LOGIN_ERRORS: Record<string, string> = {
 export default function Login() {
   const [params] = useSearchParams();
   const [google, setGoogle] = useState(false);
+  const [mode, setMode] = useState("open");
   useEffect(() => {
-    api<{ google: boolean }>("/auth/providers").then((r) => setGoogle(r.data.google)).catch(() => setGoogle(false));
+    api<{ google: boolean; signup_mode: string }>("/auth/providers")
+      .then((r) => { setGoogle(r.data.google); setMode(r.data.signup_mode); }).catch(() => setGoogle(false));
   }, []);
   const loginError = LOGIN_ERRORS[params.get("error") ?? ""];
   const [email, setEmail] = useState("");
@@ -45,11 +48,11 @@ export default function Login() {
   }
   return (
     <Frame>
-      <p className="muted">僅限受邀成員使用。</p>
+      <p className="muted">{mode === "invite" ? "僅限受邀成員使用。" : mode === "approval" ? "第一次使用請以 Email 或 Google 申請，管理員核准後即可登入。" : "登入或免費註冊會員：第一次使用會自動建立帳號。"}</p>
       {loginError && <p className="banner" role="alert">{loginError}</p>}
       {google && (
         <>
-          <a className="btn primary" style={{ display: "block", textAlign: "center" }} href="/api/v1/auth/google/start">使用 Google 帳號登入</a>
+          <a className="btn primary" style={{ display: "block", textAlign: "center" }} href="/api/v1/auth/google/start">{mode === "invite" ? "使用 Google 帳號登入" : "使用 Google 帳號登入／註冊"}</a>
           <p className="tiny muted" style={{ textAlign: "center" }}>或使用 Email 登入連結</p>
         </>
       )}
