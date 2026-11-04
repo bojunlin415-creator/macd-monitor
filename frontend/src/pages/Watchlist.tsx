@@ -51,7 +51,7 @@ export default function Watchlist() {
                   <td data-label="股票"><Link to={`/instruments/${w.instrument.id}`}>{w.instrument.name}</Link> <span className="muted num">{w.instrument.symbol}</span></td>
                   <td data-label="市場">{MARKET[w.instrument.market]}</td>
                   <td data-label="分組">{w.group || <span className="muted">未分組</span>}</td>
-                  <td data-label="監測狀態">{w.instrument.state === "warmup" ? `暖機中（已累積 ${w.instrument.weeks_available}／139 週）` : INSTRUMENT_STATE[w.instrument.state]}</td>
+                  <td data-label="監測狀態">{w.instrument.state === "warmup" ? `暖機中（已累積 ${w.instrument.weeks_available}／104 週）` : INSTRUMENT_STATE[w.instrument.state]}</td>
                   <td><button className="btn link" onClick={() => setConfirmRm({ id: w.id, name: w.instrument.name })}>移除</button></td>
                 </tr>
               ))}

@@ -73,8 +73,9 @@ def test_uat03_macd_matches_reference_and_warmup():
         assert abs(m.dif[i] - dif[i]) <= tol and abs(m.dea[i] - dea[i]) <= tol
     assert m.dif[24] is None and m.dif[25] is not None
     assert m.dea[32] is None and m.dea[33] is not None
-    assert I.MacdParams().warmup_weeks == 139
-    assert not I.warmup_ok(137) and I.warmup_ok(138)
+    assert I.MacdParams().warmup_weeks == 104
+    assert not I.warmup_ok(102) and I.warmup_ok(103)
+    assert I.MacdParams(5, 10, 5).warmup_weeks == 60
 
 
 def test_param_validation():
