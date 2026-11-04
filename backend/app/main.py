@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 
 from app.api import admin, auth, cron, line, me, positions, signals
 from app.api.deps import ApiError, api_error_handler
@@ -21,8 +22,11 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(_app):
-    init_db()
-    _bootstrap()
+    try:
+        init_db()
+        _bootstrap()
+    except Exception:  # 資料庫尚未設定或暫時無法連線時仍讓服務啟動，由各請求回報 503
+        logging.getLogger("api").exception("啟動時初始化資料庫失敗")
     yield
 
 
@@ -85,4 +89,20 @@ for r in (auth.router, auth.admin_router, me.router, signals.router, positions.r
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    from sqlalchemy import text
+    from app.db.session import engine
+    try:
+        with engine.connect() as c:
+            c.execute(text("select 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {"ok": db_ok, "database": "ok" if db_ok else "unavailable"}
+
+
+@app.exception_handler(OperationalError)
+async def db_unavailable(request: Request, exc: OperationalError):
+    logging.getLogger("api").error("資料庫無法連線：%s", exc.__class__.__name__)
+    return JSONResponse(status_code=503, content={"error": {
+        "code": "db_unavailable", "message": "資料庫暫時無法連線，請稍後再試。",
+        "request_id": getattr(request.state, "request_id", None)}})
