@@ -61,7 +61,8 @@ def event_dict(db: Session, e: M.SignalEvent, holdings: set[str]) -> dict:
 
 def _market_status(db: Session) -> list[dict]:
     out = []
-    for m in db.scalars(select(M.Market).order_by(M.Market.id)):
+    order = {"TW": 0, "US": 1, "JP": 2}
+    for m in sorted(db.scalars(select(M.Market)), key=lambda m: order.get(m.id, 9)):
         out.append({"id": m.id, "data_cutoff": str(m.data_cutoff) if m.data_cutoff else None, "state": m.data_state,
                     "last_success_at": m.last_success_at.isoformat() if m.last_success_at else None})
     return out
@@ -163,7 +164,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
         for s, n in rows:
             if s in counts:
                 counts[s] = n
-    recent = db.scalars(base.order_by(M.SignalEvent.week_key.desc(), M.SignalEvent.first_at.desc()).limit(30)).all()
+    recent = db.scalars(base.order_by(M.SignalEvent.week_key.desc(), M.SignalEvent.first_at.desc()).limit(10)).all()
     b = db.get(M.LineBinding, user.id)
     p = db.get(M.NotificationPrefs, user.id)
     return ok({

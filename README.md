@@ -36,3 +36,11 @@ python -m pytest                                        # 測試
 `DATABASE_URL`、`SECRET_KEY`、`APP_BASE_URL`、`APP_ENV`（dev／prod）、`LINE_CHANNEL_ACCESS_TOKEN`、
 `LINE_CHANNEL_SECRET`、`LINE_BOT_BASIC_ID`、`LINE_LIVE`（非正式環境要真的推播時設 1）、`DATA_PROVIDER`。
 密鑰不得提交到版本庫。
+
+前端：
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173，/api 代理到 :8000
+```
