@@ -126,7 +126,7 @@ def test_uat06_entry_vs_cross(rv, expect):
     closes = [95.0, 98.0, 100.0]
     ma20 = [96.0, 97.0, 97.5]
     ev = classify(h, closes, ma20, [None, None, rv])
-    assert expect in ev.codes and S.NEG_WEAK in ev.codes  # 負柱沒縮短就翻正：同週也是買進點
+    assert expect in ev.codes
     assert S.SIGNAL_DEFS[S.CROSS] == (S.LEVEL_OBSERVE, S.DIR_BULL)
 
 
@@ -162,32 +162,26 @@ def test_priority_order():
 def test_continuous_shrink_only_first_segment():
     h = [0.5, 1.2, 1.0, 0.8, 1.1, 0.9]
     fired = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
-    assert fired == [2]  # 同一段正柱只發一次賣出點
+    assert fired == [2, 5]  # 柱體每次由升轉降都是賣出點
 
 
-def test_cross_without_shrink_fires_buy_and_sell():
-    # 台積電 2026：正柱縮短後翻成一週負柱，4/6 那週直接翻正 → 買進點；之後正柱首次縮短 → 賣出點
-    h = [1.0, 2.0, 1.5, 0.8, -0.3, 0.53, 1.2, 2.0, 1.8, -0.5]
+def test_turning_points_tsmc_2026():
+    # 台積電 2026：正柱縮短→一週負柱→4/6 柱體回升（買進點）→正柱長到 5/4→5/11 回落（賣出點）
+    h = [1.0, 2.0, 1.5, 0.8, -0.3, 0.53, 1.2, 2.0, 1.8, 1.5]
     buys = [t for t in range(2, len(h)) if S.NEG_WEAK in classify(h, t=t).codes]
     sells = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
-    assert buys == [5] and sells == [2, 8]  # 第 8 週翻負前已發過賣出點，不重發
+    assert buys == [5] and sells == [2, 8]
 
 
-def test_death_cross_without_shrink_fires_sell():
-    h = [0.5, 1.0, 1.5, -0.4, -0.8]
-    assert [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes] == [3]
-
-
-def test_sell_fires_again_in_next_positive_segment():
-    h = [0.5, 1.2, 1.0, -0.4, -0.9, -0.5, 0.6, 1.3, 1.1]
-    sells = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
-    buys = [t for t in range(2, len(h)) if S.NEG_WEAK in classify(h, t=t).codes]
-    assert sells == [2, 8] and buys == [5]
+def test_turning_point_ignores_zero_axis():
+    h = [3.0, 2.0, 1.0, 1.5, 2.0, 1.0]  # 正柱縮短後又變長：也算買進點
+    assert [t for t in range(2, len(h)) if S.NEG_WEAK in classify(h, t=t).codes] == [3]
+    assert [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes] == [5]
 
 
 def test_cross_zero_is_not_shrink():
     ev = classify([-0.5, -0.2, 0.3])
-    assert ev.cond("neg_shrink").state == S.NOT_MET  # 翻正不算負柱縮短（買進點由翻正補發）
+    assert ev.cond("neg_shrink").state == S.NOT_MET  # 翻正不算負柱縮短
 
 
 def test_warmup_blocks_signals():

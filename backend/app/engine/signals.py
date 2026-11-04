@@ -2,8 +2,7 @@
 
 classify_week() 只看陣列，不碰資料庫；同一次判斷使用同一個 eps。
 首次減弱（NEG_WEAK／POS_WEAK）不因量價、MA20 未達門檻而延後（P-V06）。
-2026-11-04 使用者定案：負柱首次縮短＝買進點、正柱首次縮短＝賣出點，每段負柱／正柱只發一次；
-若該段沒出現縮短就翻面（金叉／死叉），翻面那週補發。
+2026-11-04 使用者定案：看柱體轉折：Δ＝這週柱體−上週柱體，Δ 由 ≤0 轉 >0＝買進點、由 ≥0 轉 <0＝賣出點。
 """
 from __future__ import annotations
 
@@ -129,26 +128,6 @@ def _first(fn, hist: Sequence[Optional[float]], closes: Sequence[float], t: int)
     return not fn(hist[t - 2], hist[t - 1], eps_prev)
 
 
-def _segment_has_first(fn, hist: Sequence[Optional[float]], closes: Sequence[float], end: int,
-                       positive: bool) -> bool:
-    """從第 end 週往前，到這段正柱（或負柱）起點為止，是否已經有過「首次縮短」。"""
-    k = end
-    while k >= 2:
-        h = hist[k - 1]
-        if h is None or (h <= 0 if positive else h >= 0):
-            break
-        if _first(fn, hist, closes, k):
-            return True
-        k -= 1
-    return False
-
-
-def _first_in_segment(fn, hist: Sequence[Optional[float]], closes: Sequence[float], t: int,
-                      positive: bool) -> bool:
-    """同一段正柱（或負柱）裡的第一次縮短；之後再縮短不重發，直到柱體翻到另一邊。"""
-    return _first(fn, hist, closes, t) and not _segment_has_first(fn, hist, closes, t - 1, positive)
-
-
 def classify_week(
     t: int,
     hist: Sequence[Optional[float]],
@@ -183,8 +162,11 @@ def classify_week(
     m_prev, m = ma20[t - 1], ma20[t]
     rv = rvol[t]
 
-    pos_first = _first_in_segment(pos_shrink, hist, closes, t, positive=True)
-    neg_first = _first_in_segment(neg_shrink, hist, closes, t, positive=False)
+    # 2026-11-04 使用者規則：Δ = 這週柱體 − 上週柱體。Δ 由 ≤0 轉 >0＝買進點；由 ≥0 轉 <0＝賣出點（不分零軸上下）
+    d_now = h - h_prev
+    d_prev = None if hist[t - 2] is None else h_prev - hist[t - 2]
+    neg_first = d_prev is not None and d_prev <= eps and d_now > eps
+    pos_first = d_prev is not None and d_prev >= -eps and d_now < -eps
     pos_first_prev = t - 1 > warmup_index and _first(pos_shrink, hist, closes, t - 1)
     gold = golden_cross(h_prev, h, eps)
     death = death_cross(h_prev, h, eps)
@@ -197,7 +179,7 @@ def classify_week(
     )
     vol_up = None if rv is None else rv >= thresholds.rvol_up
     vol_down_price = None if rv is None else (rv >= thresholds.rvol_up and price_down)
-    weak_bg = pos_first or pos_first_prev
+    weak_bg = _first(pos_shrink, hist, closes, t) or pos_first_prev
 
     def st(v: Optional[bool]) -> str:
         return NO_DATA if v is None else (MET if v else NOT_MET)
@@ -214,12 +196,6 @@ def classify_week(
         Condition("volume_down_price", st(vol_down_price), rv, thresholds.rvol_up),
         Condition("weak_background", st(weak_bg)),
     ]
-
-    # 柱體直接翻面、前一段沒來得及出現縮短（例如負柱只有一週）：翻面那週補發買進／賣出點
-    if gold and not neg_first and not _segment_has_first(neg_shrink, hist, closes, t - 1, positive=False):
-        neg_first = True
-    if death and not pos_first and not _segment_has_first(pos_shrink, hist, closes, t - 1, positive=True):
-        pos_first = True
 
     codes: list[str] = []
     if neg_first:
