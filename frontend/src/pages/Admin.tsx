@@ -93,12 +93,12 @@ function Members() {
     <div className="stack">
       <div className="card stack">
         <h2>邀請成員</h2>
-        <div className="row"><input className="input" style={{ flex: 1, minWidth: 220 }} type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="受邀 Email" /><button className="btn primary" disabled={!email} onClick={invite}>寄出邀請</button></div>
+        <div className="row"><input className="input" style={{ flex: 1, minWidth: 220 }} type="email" placeholder="電子郵件" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="受邀電子郵件" /><button className="btn primary" disabled={!email} onClick={invite}>寄出邀請</button></div>
         {msg && <p role="status" className="small" style={{ wordBreak: "break-all" }}>{msg}</p>}
       </div>
       <div className="card tblwrap">
         {pending > 0 && <p className="banner" role="status">有 {pending} 位會員申請等待核准。</p>}
-        <table className="tbl cards"><thead><tr><th>Email</th><th>角色</th><th>方案</th><th>狀態</th><th></th></tr></thead><tbody>
+        <table className="tbl cards"><thead><tr><th>電子郵件</th><th>角色</th><th>方案</th><th>狀態</th><th></th></tr></thead><tbody>
           {(data || []).map((u) => (
             <tr key={u.id}><td data-label="Email">{u.email}</td><td data-label="角色">{ROLE[u.role]}</td>
               <td data-label="方案">{u.role === "admin" ? "（不限）" : <select className="input" aria-label={`${u.email} 的方案`} value={u.plan} onChange={(e) => setPlan(u.id, e.target.value)}>{Object.entries(PLAN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</td>

@@ -122,8 +122,8 @@ function ImportModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
   return (
     <Modal open={open} onClose={onClose} title="匯入 Excel／CSV">
       <div className="stack">
-        <p className="small muted">Excel（.xlsx）：每個工作表要有「股號」與「公司名稱」欄，每列一檔股票，其他欄位不影響匯入。工作表名稱含「日」視為日股。</p>
-        <p className="small muted">CSV：欄位 market, symbol, group, fast, slow, signal（UTF-8）。market 為 TW、US 或 JP。檔案上限 5 MB／1,000 檔。</p>
+        <p className="small muted">Excel（.xlsx）：每個工作表要有「股號」與「公司名稱」欄，每列一檔股票，其他欄位不影響匯入。工作表名稱含「台」視為台股、含「美」視為美股，其餘視為日股。</p>
+        <p className="small muted">CSV：欄位 market, symbol, group, fast, slow, signal（UTF-8）。market 填 TW（台股）、US（美股）或 JP（日股）。檔案上限 5 MB／1,000 檔。</p>
         <a className="small" href={"data:text/csv;charset=utf-8,%EF%BB%BFmarket,symbol,group,fast,slow,signal%0ATW,T001,半導體,,,%0A"} download="自選匯入範本.csv">下載範本</a>
         <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} aria-label="選擇 Excel 或 CSV 檔" />
         {preview && <>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, ApiError, idemKey } from "../lib/api";
 import { Empty, ErrorBox, Field, Instrument, Modal, SignalBadge, Skeleton, StatusTag, Toast, useApi } from "../components/ui";
-import { MARKET, TX_TYPE, fmtNum, fmtPct } from "../i18n";
+import { MARKET, TX_TYPE, cur, fmtNum, fmtPct } from "../i18n";
 
 interface Pos { instrument: Instrument; quantity: number; avg_cost: number | null; cost_basis: number; realized_pnl: number; last_close: number | null; market_value: number | null; unrealized: number | null; return: number | null; watched: boolean; concentration: number | null; signal: { id: string; code: string; level: string; direction: string; status: string } | null }
 
@@ -20,12 +20,12 @@ export default function Positions() {
   return (
     <>
       <div className="topbar"><h1>持股</h1><button className="btn primary" onClick={() => setOpen(true)}>記錄交易</button></div>
-      {data.totals.length > 0 && <p className="small muted">市值合計（原幣分列）：{data.totals.map((t) => `${t.currency} ${fmtNum(t.market_value, 0)}${t.incomplete ? "（不完整）" : ""}`).join("；")}</p>}
+      {data.totals.length > 0 && <p className="small muted">市值合計（原幣分列）：{data.totals.map((t) => `${cur(t.currency)} ${fmtNum(t.market_value, 0)}${t.incomplete ? "（不完整）" : ""}`).join("；")}</p>}
       {data.items.length === 0 ? <Empty text="尚未記錄持股。記錄後，相關的偏空訊號會出現在總覽的「持股風險」。" action={<button className="btn primary" onClick={() => setOpen(true)}>記錄交易</button>} /> : (
         <div className="grid">
           {data.items.map((p) => (
             <div key={p.instrument.id} className="card stack" style={{ gap: 8 }}>
-              <div className="row"><strong style={{ fontSize: 17, flex: 1 }}><Link to={`/instruments/${p.instrument.id}`}>{p.instrument.name}</Link> <span className="muted num">{p.instrument.symbol}</span></strong><span className="small muted">{MARKET[p.instrument.market]}・{p.instrument.currency}</span></div>
+              <div className="row"><strong style={{ fontSize: 17, flex: 1 }}><Link to={`/instruments/${p.instrument.id}`}>{p.instrument.name}</Link> <span className="muted num">{p.instrument.symbol}</span></strong><span className="small muted">{MARKET[p.instrument.market]}・{cur(p.instrument.currency)}</span></div>
               {p.signal ? <Link to={`/signals/${p.signal.id}`} className="row" style={{ textDecoration: "none" }}><SignalBadge code={p.signal.code} level={p.signal.level} direction={p.signal.direction} /><StatusTag status={p.signal.status} /></Link>
                 : p.watched ? <span className="small muted">目前無訊號</span> : <span className="small" style={{ color: "var(--attention)" }}>未監測，不會收到訊號</span>}
               <dl className="kv num">
@@ -73,7 +73,7 @@ function TxModal({ open, onClose, presetId, onDone }: { open: boolean; onClose: 
   return (
     <Modal open={open} onClose={onClose} title="記錄交易">
       <div className="stack">
-        {inst ? <div className="row"><strong>{inst.name} {inst.symbol}</strong><span className="muted small">{MARKET[inst.market]}・{inst.currency}</span><button className="btn link" onClick={() => setInst(null)}>更換</button></div> : <>
+        {inst ? <div className="row"><strong>{inst.name} {inst.symbol}</strong><span className="muted small">{MARKET[inst.market]}・{cur(inst.currency)}</span><button className="btn link" onClick={() => setInst(null)}>更換</button></div> : <>
           <input className="input" placeholder="搜尋股票" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜尋股票" />
           <div style={{ maxHeight: 160, overflowY: "auto" }}>{opts.map((o) => <button key={o.id} className="btn link" style={{ display: "block" }} onClick={() => setInst(o)}>{o.name} {o.symbol}（{MARKET[o.market]}）</button>)}</div>
         </>}
@@ -81,8 +81,8 @@ function TxModal({ open, onClose, presetId, onDone }: { open: boolean; onClose: 
         <Field label="日期"><input className="input" type="date" value={f.date} onChange={set("date")} /></Field>
         {f.type === "split" ? <Field label="每 1 股變為幾股" error={errs.split_ratio}><input className="input" inputMode="decimal" value={f.split_ratio} onChange={set("split_ratio")} /></Field> : <>
           <Field label={`數量（${inst ? unit(inst) : "股"}）`} error={errs.qty}><input className={`input ${errs.qty ? "invalid" : ""}`} inputMode="decimal" value={f.qty} onChange={set("qty")} /></Field>
-          <Field label={`價格（${inst?.currency ?? "原幣"}）`} error={errs.price}><input className={`input ${errs.price ? "invalid" : ""}`} inputMode="decimal" value={f.price} onChange={set("price")} /></Field>
-          <Field label={`費用（${inst?.currency ?? "原幣"}）`} error={errs.fee}><input className="input" inputMode="decimal" value={f.fee} onChange={set("fee")} /></Field>
+          <Field label={`價格（${inst ? cur(inst.currency) : "原幣"}）`} error={errs.price}><input className={`input ${errs.price ? "invalid" : ""}`} inputMode="decimal" value={f.price} onChange={set("price")} /></Field>
+          <Field label={`費用（${inst ? cur(inst.currency) : "原幣"}）`} error={errs.fee}><input className="input" inputMode="decimal" value={f.fee} onChange={set("fee")} /></Field>
           {Number.isFinite(est) && est > 0 && <p className="small muted">預估{f.type === "sell" ? "成交淨額" : "成本"}：{fmtNum(est)}（以伺服器結果為準）</p>}
         </>}
         <Field label="備註"><input className="input" value={f.note} onChange={set("note")} /></Field>

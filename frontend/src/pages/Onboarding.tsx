@@ -43,7 +43,7 @@ export default function Onboarding() {
           <ul>
             <li>本系統只提供週線技術資訊，<strong>不自動下單</strong>，也不提供買賣股數建議。</li>
             <li>平日盤後的訊號為「本週暫定」，週末可能失效。</li>
-            <li>我們只保存你的 Email、LINE 綁定與你自行輸入的持股，不會提供給其他成員。</li>
+            <li>我們只保存你的電子郵件、LINE 綁定與你自行輸入的持股，不會提供給其他成員。</li>
           </ul>
           <details><summary>展開全文</summary><p className="small">{DISCLAIMER}</p></details>
           <div className="row"><button className="btn primary" onClick={consent}>我已閱讀並同意</button></div>

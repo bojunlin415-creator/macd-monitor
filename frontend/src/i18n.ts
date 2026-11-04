@@ -58,6 +58,17 @@ export const CONDITION: Record<string, string> = {
 export const CONDITION_STATE: Record<string, string> = { met: "已符合", not_met: "未符合", no_data: "資料不足" };
 export const CONDITION_ICON: Record<string, string> = { met: "✓", not_met: "✕", no_data: "？" };
 export const MARKET: Record<string, string> = { TW: "台股", US: "美股", JP: "日股" };
+export const EXCHANGE: Record<string, string> = {
+  XTAI: "上市", ROCO: "上櫃", XTKS: "東京證交所", XNAS: "那斯達克", XNYS: "紐約證交所",
+};
+export const CURRENCY: Record<string, string> = { TWD: "新台幣", JPY: "日圓", USD: "美元" };
+export const SOURCE: Record<string, string> = {
+  sample: "示意資料，非真實行情",
+  jquants: "資料來源：日本交易所集團 J-Quants（已還原權值）",
+  finmind: "資料來源：FinMind 台股資料庫（已還原除權息）",
+};
+export const exch = (mic: string) => EXCHANGE[mic] ?? mic;
+export const cur = (c: string) => CURRENCY[c] ?? c;
 export const TX_TYPE: Record<string, string> = { opening: "開倉餘額", buy: "買入", sell: "賣出", split: "拆併股" };
 export const ROLE: Record<string, string> = { admin: "管理員", member: "會員" };
 export const USER_STATUS: Record<string, string> = { active: "啟用", pending: "待核准", disabled: "停用" };

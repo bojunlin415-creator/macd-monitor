@@ -53,7 +53,7 @@ export default function Login() {
       {google && (
         <>
           <a className="btn primary" style={{ display: "block", textAlign: "center" }} href="/api/v1/auth/google/start">{mode === "invite" ? "使用 Google 帳號登入" : "使用 Google 帳號登入／註冊"}</a>
-          <p className="tiny muted" style={{ textAlign: "center" }}>或使用 Email 登入連結</p>
+          <p className="tiny muted" style={{ textAlign: "center" }}>或使用電子郵件登入連結</p>
         </>
       )}
       <form onSubmit={submit} className="stack">
@@ -117,7 +117,7 @@ export function Setup() {
   }
   return (
     <Frame>
-      <p className="muted">管理員首次登入。請輸入你的 Email，以及在 Vercel 環境變數中設定的 CRON_SECRET。系統還沒有管理員時，會以這個 Email 建立第一位管理員。</p>
+      <p className="muted">管理員首次登入。請輸入你的電子郵件，以及在 Vercel 環境變數中設定的 CRON_SECRET。系統還沒有管理員時，會以這個電子郵件建立第一位管理員。</p>
       <form onSubmit={submit} className="stack">
         <Field label="Email"><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="設定金鑰（CRON_SECRET）" error={err ?? undefined}><input className="input" type="password" required value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" /></Field>

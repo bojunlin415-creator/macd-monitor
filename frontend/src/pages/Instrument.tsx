@@ -4,7 +4,7 @@ import { createChart, IChartApi, ISeriesApi, LineStyle, Time } from "lightweight
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Change, ErrorBox, Instrument, SignalBadge, Skeleton, StatusTag, useApi } from "../components/ui";
-import { INSTRUMENT_STATE, MARKET, WEEK_STATUS, fmtDate, fmtNum, weekTitle } from "../i18n";
+import { INSTRUMENT_STATE, MARKET, SOURCE, WEEK_STATUS, cur, exch, fmtDate, fmtNum, weekTitle } from "../i18n";
 import { RuleEditor } from "./Settings";
 
 interface Week { week_key: string; status: string; o: number; h: number; l: number; c: number; v: number; elapsed: number; expected: number; dif: number | null; dea: number | null; hist: number | null; ma5: number | null; ma10: number | null; ma20: number | null; ma60: number | null; rvol: number | null }
@@ -46,11 +46,9 @@ export default function InstrumentPage() {
           <label className="row small"><input type="checkbox" checked={!!inst.watch_id} onChange={toggleWatch} disabled={busy} style={{ width: 20, height: 20 }} />監測中</label>
         </div>
         <div className="row small muted">
-          <span>{MARKET[inst.market]}・{inst.mic}・{inst.currency}</span>
+          <span>{MARKET[inst.market]}・{exch(inst.mic)}・{cur(inst.currency)}</span>
           <span>資料截至 {fmtDate(inst.market_cutoff)} 收盤</span>
-          {inst.license_status === "sample" && <span>示意資料，非真實行情</span>}
-          {inst.license_status === "jquants" && <span>資料來源：J-Quants（已還原權值）</span>}
-          {inst.license_status === "finmind" && <span>資料來源：FinMind（已還原除權息）</span>}
+          {SOURCE[inst.license_status] && <span>{SOURCE[inst.license_status]}</span>}
         </div>
         {last && (
           <div className="row">

@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { ConditionRow, ErrorBox, RiskNote, SignalBadge, SignalEvent, Skeleton, StatusTag, Change, useApi } from "../components/ui";
-import { CONDITION, EVENT_STATUS, MARKET, SIGNAL_NAME, WEAKEN_NOTE, fmtDate, fmtNum, weekTitle } from "../i18n";
+import { CONDITION, EVENT_STATUS, MARKET, exch, SIGNAL_NAME, WEAKEN_NOTE, fmtDate, fmtNum, weekTitle } from "../i18n";
 
 interface Detail extends SignalEvent {
   conditions: { key: string; state: string; actual: number | null; threshold: number | null }[];
@@ -40,7 +40,7 @@ export default function SignalDetail() {
       <Link to="/signals" className="small">← 返回訊號</Link>
       <section className="card stack" aria-label="結論">
         <div className="row"><SignalBadge code={d.code} level={d.level} direction={d.direction} /><StatusTag status={d.status} />{d.held && <span className="held">持有</span>}</div>
-        <h1 style={{ margin: 0 }}>{d.instrument.name} <span className="muted num">{d.instrument.symbol}</span> <span className="muted small">{MARKET[d.instrument.market]}・{d.instrument.mic}</span></h1>
+        <h1 style={{ margin: 0 }}>{d.instrument.name} <span className="muted num">{d.instrument.symbol}</span> <span className="muted small">{MARKET[d.instrument.market]}・{exch(d.instrument.mic)}</span></h1>
         <p style={{ fontSize: 18, margin: 0 }}>{d.sentence}。{CONCLUSION[d.status]}</p>
         {d.also.length > 0 && <p className="small muted" style={{ margin: 0 }}>也符合：{d.also.map((c) => SIGNAL_NAME[c]).join("、")}</p>}
         <div className="row small muted">
@@ -70,7 +70,7 @@ export default function SignalDetail() {
           <dt>快線（DIF）</dt><dd>本週 {fmtNum(s.dif, 4)}；前週 {fmtNum(s.dif_prev, 4)}</dd>
           <dt>慢線（DEA）</dt><dd>本週 {fmtNum(s.dea, 4)}；前週 {fmtNum(s.dea_prev, 4)}</dd>
           <dt>柱體</dt><dd>本週 {fmtNum(s.hist, 4)}；前週 {fmtNum(s.hist_prev, 4)}</dd>
-          <dt>容差 eps</dt><dd>{d.eps?.toExponential(2)}</dd>
+          <dt>容差</dt><dd>{d.eps?.toExponential(2)}</dd>
           <dt>MA5／10／20／60</dt><dd>{["5", "10", "20", "60"].map((k) => fmtNum(s.ma?.[k])).join("／")}</dd>
           <dt>量比</dt><dd>{fmtNum(s.rvol)}</dd>
           <dt>資料版本</dt><dd><code>{d.versions.input_hash}</code>（修訂 {d.versions.data_revision}）</dd>
