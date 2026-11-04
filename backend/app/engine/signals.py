@@ -2,6 +2,7 @@
 
 classify_week() 只看陣列，不碰資料庫；同一次判斷使用同一個 eps。
 首次減弱（NEG_WEAK／POS_WEAK）不因量價、MA20 未達門檻而延後（P-V06）。
+2026-11-04 使用者定案：負柱首次縮短＝買進點、正柱首次縮短＝賣出點，每段負柱／正柱只發一次。
 """
 from __future__ import annotations
 
@@ -28,16 +29,16 @@ DIR_BULL = "bullish"  # ↗ 偏多
 DIR_BEAR = "bearish"  # ↘ 偏空
 
 SIGNAL_DEFS: dict[str, tuple[str, str]] = {
-    NEG_WEAK: (LEVEL_OBSERVE, DIR_BULL),
+    NEG_WEAK: (LEVEL_CANDIDATE, DIR_BULL),  # 買進點
     CROSS: (LEVEL_OBSERVE, DIR_BULL),  # 2026-11-04 定案：金叉未達候選為「觀察」
-    POS_WEAK: (LEVEL_ATTENTION, DIR_BEAR),
+    POS_WEAK: (LEVEL_CANDIDATE, DIR_BEAR),  # 賣出點
     RISK: (LEVEL_WARNING, DIR_BEAR),
     ENTRY: (LEVEL_CANDIDATE, DIR_BULL),
     EXIT: (LEVEL_CANDIDATE, DIR_BEAR),
 }
 
-# 主標籤優先序：EXIT > RISK > ENTRY > POS_WEAK > CROSS > NEG_WEAK
-PRIORITY = [EXIT, RISK, ENTRY, POS_WEAK, CROSS, NEG_WEAK]
+# 主標籤優先序：賣出點 > 買進點 > EXIT > RISK > ENTRY > CROSS
+PRIORITY = [POS_WEAK, NEG_WEAK, EXIT, RISK, ENTRY, CROSS]
 
 # 首次減弱依 P-V06 不可關閉訂閱
 MANDATORY_CODES = frozenset({NEG_WEAK, POS_WEAK})
@@ -127,6 +128,22 @@ def _first(fn, hist: Sequence[Optional[float]], closes: Sequence[float], t: int)
     return not fn(hist[t - 2], hist[t - 1], eps_prev)
 
 
+def _first_in_segment(fn, hist: Sequence[Optional[float]], closes: Sequence[float], t: int,
+                      positive: bool) -> bool:
+    """同一段正柱（或負柱）裡的第一次縮短；之後再縮短不重發，直到柱體翻到另一邊。"""
+    if not _first(fn, hist, closes, t):
+        return False
+    k = t - 1
+    while k >= 2:
+        h = hist[k - 1]
+        if h is None or (h <= 0 if positive else h >= 0):
+            break  # 往前到這段的起點
+        if _first(fn, hist, closes, k):
+            return False
+        k -= 1
+    return True
+
+
 def classify_week(
     t: int,
     hist: Sequence[Optional[float]],
@@ -161,8 +178,8 @@ def classify_week(
     m_prev, m = ma20[t - 1], ma20[t]
     rv = rvol[t]
 
-    pos_first = _first(pos_shrink, hist, closes, t)
-    neg_first = _first(neg_shrink, hist, closes, t)
+    pos_first = _first_in_segment(pos_shrink, hist, closes, t, positive=True)
+    neg_first = _first_in_segment(neg_shrink, hist, closes, t, positive=False)
     pos_first_prev = t - 1 > warmup_index and _first(pos_shrink, hist, closes, t - 1)
     gold = golden_cross(h_prev, h, eps)
     death = death_cross(h_prev, h, eps)

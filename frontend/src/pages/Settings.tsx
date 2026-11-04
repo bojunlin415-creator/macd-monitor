@@ -51,7 +51,7 @@ export function RuleEditor({ scope }: { scope: string }) {
   return (
     <div className="stack">
       <h2>{scope === "global" ? "預設規則" : "此股規則"} {r.custom && <span className="held">自訂</span>}</h2>
-      <p style={{ fontSize: 18, margin: 0 }}>MACD {r.fast}／{r.slow}／{r.signal}，首次減弱即通知。</p>
+      <p style={{ fontSize: 18, margin: 0 }}>MACD {r.fast}／{r.slow}／{r.signal}，柱體首次縮短即通知買進點／賣出點。</p>
       {r.effective_week && <p className="small muted" style={{ margin: 0 }}>目前版本自 {fmtDate(r.effective_week)} 當週生效</p>}
       <details>
         <summary>進階設定</summary>
@@ -130,7 +130,7 @@ function NotifySettings() {
       </div>}
 
       <h2>依等級訂閱</h2>
-      <p className="small muted" style={{ margin: 0 }}>關閉的訊號仍會記錄在站內，只是不推播 LINE。「賣壓／買方首次減弱」依政策不可關閉。</p>
+      <p className="small muted" style={{ margin: 0 }}>關閉的訊號仍會記錄在站內，只是不推播 LINE。「買進點／賣出點」不可關閉。</p>
       {["NEG_WEAK", "POS_WEAK", "CROSS", "RISK", "ENTRY", "EXIT"].map((c) => {
         const locked = me.notify.mandatory_codes.includes(c);
         return (

@@ -411,7 +411,7 @@ def put_prefs(body: PrefsIn, request: Request, user: M.User = Depends(current_us
         if bad:
             errs["muted_codes"] = "訊號代碼不正確。"
         if set(body.muted_codes) & MANDATORY_CODES:
-            errs["muted_codes"] = "「賣壓／買方首次減弱」依政策不可關閉。"
+            errs["muted_codes"] = "「買進點／賣出點」不可關閉。"
         p.muted_codes = sorted(set(body.muted_codes))
     if body.merge_threshold is not None:
         if not (3 <= body.merge_threshold <= 10):

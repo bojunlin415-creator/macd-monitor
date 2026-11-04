@@ -162,7 +162,14 @@ def test_priority_order():
 def test_continuous_shrink_only_first_segment():
     h = [0.5, 1.2, 1.0, 0.8, 1.1, 0.9]
     fired = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
-    assert fired == [2, 5]
+    assert fired == [2]  # 同一段正柱只發一次賣出點
+
+
+def test_sell_fires_again_in_next_positive_segment():
+    h = [0.5, 1.2, 1.0, -0.4, -0.9, -0.5, 0.6, 1.3, 1.1]
+    sells = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
+    buys = [t for t in range(2, len(h)) if S.NEG_WEAK in classify(h, t=t).codes]
+    assert sells == [2, 8] and buys == [5]
 
 
 def test_cross_zero_is_not_shrink():

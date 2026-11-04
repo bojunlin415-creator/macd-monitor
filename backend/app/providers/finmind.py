@@ -5,6 +5,8 @@
 - 額度：有金鑰每小時 600 次、沒有 300 次；超過回 402。
 - 日 K：TaiwanStockPrice（date, stock_id, open, max, min, close, Trading_Volume），未還原。
 - 除權息：TaiwanStockDividendResult 的 reference_price / before_price 轉成公司行動，週線因此還原權值。
+- 股票分割（含反分割）TaiwanStockSplitPrice、面額變更 TaiwanStockParValueChange：整個市場一次查 10 年；
+  減資 TaiwanStockCapitalReductionReferencePrice：逐檔查。都轉成公司行動，避免分割當週出現價格斷崖。
 - 股票清單：TaiwanStockInfo（上市 twse、上櫃 tpex）。
 - 交易日：TaiwanStockTradingDate；抓不到時改用國定假日推算。
 """
@@ -33,6 +35,22 @@ _CODE_RE = re.compile(r"^[0-9]{4}$|^00[0-9]{2,4}[A-Z]?$")  # 一般股票 4 碼�
 MIC = {"twse": "XTAI", "tpex": "ROCO"}
 
 
+_UNLOADED = object()
+
+
+def _ratio(before, after) -> float | None:
+    """生效日前的價格要乘上的係數 = 生效後參考價 ÷ 生效前收盤。"""
+    try:
+        b, a = float(before), float(after)
+    except (TypeError, ValueError):
+        return None
+    return a / b if b > 0 and a > 0 else None
+
+
+def _history_start() -> str:
+    return (date.today() - timedelta(days=365 * 10 + 30)).isoformat()
+
+
 def tw_holidays(start: date, end: date) -> set[date]:
     return set(_holidays.Taiwan(years=range(start.year, end.year + 1)).keys())
 
@@ -47,6 +65,7 @@ class FinMindTaiwanProvider:
         self._sleep = sleep
         self._last = 0.0
         self._range: dict[str, tuple[date, date]] = {}
+        self._market_events = _UNLOADED
 
     # ---- 介面 ----
     def instruments(self, market: str) -> list[InstrumentInfo]:
@@ -78,18 +97,63 @@ class FinMindTaiwanProvider:
         return known + weekday_sessions(last + timedelta(days=1), end, hol) if last < end else known
 
     def corporate_actions(self, market: str, symbol: str) -> list[CorporateAction]:
+        """除權息、減資（依本次抓到的日線區間）＋ 股票分割、面額變更（全期，整個市場一次查）。"""
+        out = list(self._events(symbol))
+        if self._market_events is None:  # 整個市場查不到時，改逐檔查全期
+            q = {"data_id": symbol, "start_date": _history_start()}
+            out += self._split_rows(self._get_opt({"dataset": "TaiwanStockSplitPrice", **q}))
+            out += self._par_rows(self._get_opt({"dataset": "TaiwanStockParValueChange", **q}))
         rng = self._range.pop(symbol, None)
         if rng is None:
-            return []
-        out = []
-        for r in self._get({"dataset": "TaiwanStockDividendResult", "data_id": symbol,
-                            "start_date": rng[0].isoformat(), "end_date": rng[1].isoformat()}):
+            return out
+        s, e = rng[0].isoformat(), rng[1].isoformat()
+        for r in self._get({"dataset": "TaiwanStockDividendResult", "data_id": symbol, "start_date": s, "end_date": e}):
+            f = _ratio(r.get("before_price"), r.get("reference_price"))
+            if f is not None and f < 1:
+                out.append(CorporateAction(date.fromisoformat(r["date"]), f, "dividend"))
+        for r in self._get_opt({"dataset": "TaiwanStockCapitalReductionReferencePrice", "data_id": symbol,
+                            "start_date": s, "end_date": e}):
+            f = _ratio(r.get("ClosingPriceonTheLastTradingDay"), r.get("PostReductionReferencePrice"))
+            if f is not None and f != 1:
+                out.append(CorporateAction(date.fromisoformat(r["date"]), f, "capital_reduction"))
+        return out
+
+    def _events(self, symbol: str) -> list[CorporateAction]:
+        if self._market_events is _UNLOADED:
+            start = _history_start()
             try:
-                before, ref = float(r["before_price"]), float(r["reference_price"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            if before > 0 and 0 < ref < before:
-                out.append(CorporateAction(date.fromisoformat(r["date"]), ref / before, "dividend"))
+                rows = {}
+                for a_sym, a in ([(str(r.get("stock_id")), a) for r in self._get({"dataset": "TaiwanStockSplitPrice", "start_date": start})
+                                  for a in self._split_rows([r])]
+                                 + [(str(r.get("stock_id")), a) for r in self._get({"dataset": "TaiwanStockParValueChange", "start_date": start})
+                                    for a in self._par_rows([r])]):
+                    rows.setdefault(a_sym, []).append(a)
+                if not rows:  # 十年內全市場不可能沒有分割或面額變更：視為查詢未開放
+                    raise RuntimeError("整批查詢沒有資料")
+                self._market_events = rows
+            except QuotaExhausted:
+                raise
+            except Exception as e:
+                log.warning("FinMind 分割／面額變更清單無法整批取得，改逐檔查詢：%s", e)
+                self._market_events = None
+        return (self._market_events or {}).get(symbol, [])
+
+    @staticmethod
+    def _split_rows(rows: list[dict]) -> list[CorporateAction]:
+        out = []
+        for r in rows:
+            f = _ratio(r.get("before_price"), r.get("after_price"))
+            if f is not None and f != 1:
+                out.append(CorporateAction(date.fromisoformat(r["date"]), f, "split"))
+        return out
+
+    @staticmethod
+    def _par_rows(rows: list[dict]) -> list[CorporateAction]:
+        out = []
+        for r in rows:
+            f = _ratio(r.get("before_close"), r.get("after_ref_close"))
+            if f is not None and f != 1:
+                out.append(CorporateAction(date.fromisoformat(r["date"]), f, "par_value"))
         return out
 
     def final_through(self, market: str, as_of: date) -> date:
@@ -116,6 +180,16 @@ class FinMindTaiwanProvider:
         return [bars[d] for d in sorted(bars)]
 
     # ---- HTTP ----
+    def _get_opt(self, params: dict) -> list[dict]:
+        """輔助資料（分割、減資）：查不到只記錄，不讓整檔股票變成無法取得。額度用完仍往上拋。"""
+        try:
+            return self._get(params)
+        except QuotaExhausted:
+            raise
+        except Exception as e:
+            log.warning("FinMind %s 查詢失敗：%s", params.get("dataset"), e)
+            return []
+
     def _get(self, params: dict) -> list[dict]:
         wait = self._last + MIN_INTERVAL - time.monotonic()
         if wait > 0:

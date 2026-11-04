@@ -42,20 +42,50 @@ def P(routes, calls=None):
     return FinMindTaiwanProvider("tok", opener=make_opener(routes, [] if calls is None else calls), sleep=lambda s: None)
 
 
+SPLIT = {"date": "2025-06-18", "stock_id": "0050", "type": "分割", "before_price": 188.65, "after_price": 47.16}
+PAR = {"date": "2024-11-11", "stock_id": "8476", "before_close": 58.8, "after_ref_close": 29.4}
+
+
 def test_daily_bars_and_dividend_adjustment():
     calls = []
     p = P({"TaiwanStockPrice": ok([price("2026-06-10", 1000), price("2026-06-11", 990), {**price("2026-06-12", 0)}]),
            "TaiwanStockDividendResult": ok([{"date": "2026-06-11", "stock_id": "2330", "before_price": 1000,
-                                             "reference_price": 995, "after_price": 990}])}, calls)
+                                             "reference_price": 995, "after_price": 990}]),
+           "TaiwanStockCapitalReductionReferencePrice": ok([]),
+           "TaiwanStockSplitPrice": ok([SPLIT]), "TaiwanStockParValueChange": ok([PAR])}, calls)
     bars = p.daily_bars("TW", "2330", date(2026, 6, 10), date(2026, 6, 12))
     assert [b.date for b in bars] == [date(2026, 6, 10), date(2026, 6, 11)]  # 無成交日略過
     headers, q = calls[0]
     assert headers.get("Authorization") == "Bearer tok" and q["data_id"] == "2330" and q["start_date"] == "2026-06-10"
     acts = p.corporate_actions("TW", "2330")
     assert len(acts) == 1 and acts[0].effective_date == date(2026, 6, 11) and acts[0].price_factor == pytest.approx(0.995)
-    assert calls[1][1] == {"dataset": "TaiwanStockDividendResult", "data_id": "2330",
-                           "start_date": "2026-06-10", "end_date": "2026-06-11"}
+    div = next(q for _, q in calls if q["dataset"] == "TaiwanStockDividendResult")
+    assert div == {"dataset": "TaiwanStockDividendResult", "data_id": "2330", "start_date": "2026-06-10", "end_date": "2026-06-11"}
     assert p.corporate_actions("TW", "2330") == []  # 沒有新日線時不再查除權息
+
+
+def test_split_and_par_value_from_market_wide_list():
+    calls = []
+    p = P({"TaiwanStockSplitPrice": ok([SPLIT]), "TaiwanStockParValueChange": ok([PAR])}, calls)
+    a = p.corporate_actions("TW", "0050")
+    assert [(x.effective_date, x.kind) for x in a] == [(date(2025, 6, 18), "split")]
+    assert a[0].price_factor == pytest.approx(47.16 / 188.65)
+    assert p.corporate_actions("TW", "8476")[0].price_factor == pytest.approx(0.5)
+    assert len(calls) == 2 and all("data_id" not in q for _, q in calls)  # 整個市場只查一次
+
+
+def test_split_falls_back_to_per_symbol_and_capital_reduction():
+    calls = []
+    routes = {"TaiwanStockSplitPrice": 400, "TaiwanStockParValueChange": ok([]),
+              "TaiwanStockPrice": ok([price("2026-06-10", 20)]), "TaiwanStockDividendResult": ok([]),
+              "TaiwanStockCapitalReductionReferencePrice": ok([{"date": "2026-06-10", "stock_id": "2327",
+                                                               "ClosingPriceonTheLastTradingDay": 22.05,
+                                                               "PostReductionReferencePrice": 49.82}])}
+    p = P(routes, calls)
+    p.daily_bars("TW", "2327", date(2026, 6, 10), date(2026, 6, 10))
+    a = p.corporate_actions("TW", "2327")  # 分割查詢失敗不影響這檔
+    assert [(x.kind, round(x.price_factor, 3)) for x in a] == [("capital_reduction", round(49.82 / 22.05, 3))]
+    assert any(q.get("data_id") == "2327" and q["dataset"] == "TaiwanStockSplitPrice" for _, q in calls)
 
 
 def test_unknown_symbol_and_quota():

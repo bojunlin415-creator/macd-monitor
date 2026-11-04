@@ -48,7 +48,7 @@ export default function SignalDetail() {
           {d.status === "provisional" && s.expected ? <span>本週已完成 {s.elapsed}／{s.expected} 時段</span> : null}
           <span>收盤 {fmtNum(d.close)}（週 <Change x={d.week_change} />）</span>
         </div>
-        <RiskNote text={`${WEAKEN_NOTE}本資訊為週線技術分析，非交易指令。`} />
+        <RiskNote text={`${WEAKEN_NOTE}本資訊為週線技術分析，不構成投資建議。`} />
       </section>
 
       <section className="card" aria-labelledby="h-cond">

@@ -17,7 +17,7 @@ def item(code="POS_WEAK", market="TW", kind="event", status="provisional", sym="
 
 
 def test_preview_line_matches_spec_example():
-    assert preview_line(item()) == "【注意｜本週暫定】台股 0000 示意股：買方動能首次減弱 ↘"
+    assert preview_line(item()) == "【賣出點｜本週暫定】台股 0000 示意股：MACD 正柱首次縮短（買方減弱） ↘"
 
 
 def test_text_contains_all_layers():
@@ -25,7 +25,7 @@ def test_text_contains_all_layers():
     assert "收盤 100.00（週 -1.20%）｜柱體 1.00 → 0.80｜量比 0.95" in t
     assert "✓ 正柱縮短 ✕ 放量下跌 ✕ 跌破 MA20" in t
     assert "已完成 3／5 時段" in t and "第 45 週" in t
-    assert "非交易指令" in t
+    assert "不構成投資建議" in t
 
 
 def test_confirm_and_invalidate_previews():
@@ -49,8 +49,9 @@ def test_merge_is_per_market_and_sorted_by_priority():
     msgs = plan_batch(items)
     assert len(msgs) == 2
     merged = next(m for m in msgs if len(m.item_indexes) == 5)
-    assert merged.text.startswith("【台股盤後】本次 5 檔新訊號：候選 1、警示 1、注意 1、觀察 2")
-    assert merged.text.splitlines()[1].startswith("出場候選")
+    assert merged.text.startswith("【台股盤後】本次 5 檔新訊號：候選 3、警示 1、觀察 1")
+    assert merged.text.splitlines()[1].startswith("賣出點")
+    assert merged.text.splitlines()[2].startswith("買進點")
 
 
 def test_no_english_status_words():
