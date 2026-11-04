@@ -9,7 +9,7 @@ from collections import defaultdict, deque
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.api import admin, auth, cron, line, me, positions, signals
 from app.api.deps import ApiError, api_error_handler
@@ -38,6 +38,8 @@ def _bootstrap() -> None:
     try:
         with session_scope() as db:
             seed(db, settings.admin_email or None)
+    except IntegrityError:  # 多個執行個體同時冷啟動，另一個已寫入基本資料
+        logging.getLogger("api").info("基本資料已由其他執行個體建立")
     except Exception:
         logging.getLogger("api").exception("初始化資料失敗")
 
