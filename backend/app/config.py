@@ -34,6 +34,8 @@ class Settings:
     data_provider: str = field(default_factory=lambda: os.getenv("DATA_PROVIDER", "sample"))
     cron_secret: str = field(default_factory=lambda: os.getenv("CRON_SECRET", ""))
     admin_email: str = field(default_factory=lambda: os.getenv("ADMIN_EMAIL", ""))
+    google_client_id: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))
+    google_client_secret: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""))
     resend_api_key: str = field(default_factory=lambda: os.getenv("RESEND_API_KEY", ""))
     email_from: str = field(default_factory=lambda: os.getenv("EMAIL_FROM", "MACD 監測系統 <onboarding@resend.dev>"))
     # 測試環境禁止對正式成員推播：非 prod 一律走乾跑，除非明確開啟

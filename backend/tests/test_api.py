@@ -176,3 +176,73 @@ def test_cron_and_bootstrap_require_secret(env, monkeypatch):
     r = c.post("/api/v1/auth/bootstrap-link", json={"email": "admin@example.com"}, headers={"Authorization": "Bearer s3cret"})
     assert r.status_code == 200 and "token=" in r.json()["data"]["link"]
     request_cleanup()
+
+
+# ---- Google 登入 ----
+def _google(monkeypatch, claims_override=None):
+    from app.api import google
+    from app.config import settings
+    object.__setattr__(settings, "google_client_id", "cid")
+    object.__setattr__(settings, "google_client_secret", "csec")
+    c = TestClient(app, follow_redirects=False)
+    r = c.get("/api/v1/auth/google/start")
+    assert r.status_code == 302 and "accounts.google.com" in r.headers["location"]
+    state, nonce = c.cookies.get("g_state").split(".")
+    holder = {}
+
+    def fake_exchange(code):
+        claims = {"iss": "https://accounts.google.com", "aud": "cid", "exp": 9e12, "nonce": nonce,
+                  "email_verified": True, "email": holder["email"]}
+        claims.update(claims_override or {})
+        return claims
+    monkeypatch.setattr(google, "exchange_code", fake_exchange)
+
+    def finish(email, st=None):
+        holder["email"] = email
+        return c.get(f"/api/v1/auth/google/callback?code=x&state={st or state}")
+    return c, finish
+
+
+@pytest.fixture
+def google_off():
+    yield
+    from app.config import settings
+    object.__setattr__(settings, "google_client_id", "")
+    object.__setattr__(settings, "google_client_secret", "")
+
+
+def test_google_login_existing_member(env, monkeypatch, google_off):
+    c, finish = _google(monkeypatch)
+    r = finish("Member@example.com")
+    assert r.status_code == 302 and r.headers["location"] == "/"
+    assert c.get("/api/v1/me").json()["data"]["email"] == "member@example.com"
+
+
+def test_google_login_rejects_uninvited_and_bad_state(env, monkeypatch, google_off):
+    _c, finish = _google(monkeypatch)
+    assert finish("stranger@example.com").headers["location"] == "/login?error=not_invited"
+    _c, finish = _google(monkeypatch)
+    assert finish("member@example.com", st="forged").headers["location"] == "/login?error=google_failed"
+    with env() as db:
+        assert db.scalar(select(M.User).where(M.User.email == "stranger@example.com")) is None
+
+
+def test_google_login_unverified_email_rejected(env, monkeypatch, google_off):
+    _c, finish = _google(monkeypatch, {"email_verified": False})
+    assert finish("member@example.com").headers["location"] == "/login?error=google_failed"
+
+
+def test_google_login_accepts_invitation(env, monkeypatch, google_off):
+    admin = login("admin@example.com")
+    assert admin.post("/api/v1/admin/invitations", json={"email": "friend@example.com"}).status_code == 200
+    c, finish = _google(monkeypatch)
+    assert finish("friend@example.com").headers["location"] == "/"
+    assert c.get("/api/v1/me").json()["data"]["email"] == "friend@example.com"
+    # 邀請已用掉，帳號存在後仍可再次以 Google 登入
+    c2, finish2 = _google(monkeypatch)
+    assert finish2("friend@example.com").headers["location"] == "/"
+
+
+def test_google_disabled_by_default(env):
+    r = TestClient(app).get("/api/v1/auth/providers")
+    assert r.json()["data"] == {"google": False}

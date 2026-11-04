@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from app.api import admin, auth, cron, line, me, positions, signals
+from app.api import admin, auth, cron, google, line, me, positions, signals
 from app.api.deps import ApiError, api_error_handler
 from app.db.session import init_db
 
@@ -85,7 +85,7 @@ async def unhandled(request: Request, exc: Exception):
                         "error": {"code": "internal", "message": "系統發生錯誤，請稍後再試。", "retryable": True}})
 
 
-for r in (auth.router, auth.admin_router, me.router, signals.router, positions.router, line.router, admin.router, cron.router):
+for r in (auth.router, auth.admin_router, google.router, me.router, signals.router, positions.router, line.router, admin.router, cron.router):
     app.include_router(r, prefix="/api/v1")
 
 
@@ -105,6 +105,5 @@ def health():
 @app.exception_handler(OperationalError)
 async def db_unavailable(request: Request, exc: OperationalError):
     logging.getLogger("api").error("資料庫無法連線：%s", exc.__class__.__name__)
-    return JSONResponse(status_code=503, content={"error": {
-        "code": "db_unavailable", "message": "資料庫暫時無法連線，請稍後再試。",
-        "request_id": getattr(request.state, "request_id", None)}})
+    return JSONResponse(status_code=503, content={"data": None, "meta": {"request_id": getattr(request.state, "request_id", None)},
+                        "error": {"code": "db_unavailable", "message": "資料庫暫時無法連線，請稍後再試。", "retryable": True}})

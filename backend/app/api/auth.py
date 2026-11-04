@@ -95,6 +95,12 @@ def accept_invite(body: TokenIn, request: Request, response: Response, db: Sessi
     return ok({"csrf_token": csrf}, request)
 
 
+@router.get("/providers")
+def providers(request: Request):
+    from app.api.google import enabled
+    return ok({"google": enabled()}, request)
+
+
 @router.post("/logout")
 def logout(request: Request, response: Response, user: M.User = Depends(current_user), db: Session = Depends(get_db)):
     db.delete(request.state.session)
