@@ -14,11 +14,19 @@ def _db_url() -> str:
     return url
 
 
+def _base_url() -> str:
+    if os.getenv("APP_BASE_URL"):
+        return os.getenv("APP_BASE_URL", "")
+    host = os.getenv("VERCEL_PROJECT_PRODUCTION_URL")
+    return f"https://{host}" if host else "http://localhost:5173"
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str = field(default_factory=lambda: _db_url())
-    app_base_url: str = field(default_factory=lambda: os.getenv("APP_BASE_URL", "http://localhost:5173"))
-    env: str = field(default_factory=lambda: os.getenv("APP_ENV", "dev"))  # dev / test / prod
+    app_base_url: str = field(default_factory=lambda: _base_url())
+    # 在 Vercel 上預設為正式環境，避免開發用登入連結外露
+    env: str = field(default_factory=lambda: os.getenv("APP_ENV") or ("prod" if os.getenv("VERCEL") else "dev"))
     secret_key: str = field(default_factory=lambda: os.getenv("SECRET_KEY", "dev-only-secret-change-me"))
     line_channel_token: str = field(default_factory=lambda: os.getenv("LINE_CHANNEL_ACCESS_TOKEN", ""))
     line_channel_secret: str = field(default_factory=lambda: os.getenv("LINE_CHANNEL_SECRET", ""))

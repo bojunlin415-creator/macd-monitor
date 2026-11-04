@@ -2,7 +2,7 @@ import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom"
 import { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { Skeleton, useApi } from "./components/ui";
-import Login, { AcceptInvite, Verify } from "./pages/Login";
+import Login, { AcceptInvite, Setup, Verify } from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import Overview from "./pages/Overview";
 import Signals from "./pages/Signals";
@@ -69,6 +69,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/login/verify" element={<Verify />} />
         <Route path="/invite" element={<AcceptInvite />} />
+        <Route path="/setup" element={<Setup />} />
         <Route path="/onboarding" element={<OnboardingGate />} />
         <Route path="/" element={<Protected><Overview /></Protected>} />
         <Route path="/signals" element={<Protected><Signals /></Protected>} />

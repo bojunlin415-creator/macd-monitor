@@ -11,6 +11,8 @@ from app.config import settings
 
 
 def _fernet() -> Fernet:
+    if not settings.is_dev and settings.secret_key == "dev-only-secret-change-me":
+        raise RuntimeError("正式環境必須設定 SECRET_KEY")
     key = hashlib.sha256(("line-id|" + settings.secret_key).encode()).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 

@@ -116,12 +116,20 @@ class BootstrapIn(BaseModel):
 
 @router.post("/bootstrap-link")
 def bootstrap_link(body: BootstrapIn, request: Request, db: Session = Depends(get_db)):
-    """部署後首次登入：以 CRON_SECRET 驗證，只能為「管理員」產生一次性登入連結。"""
+    """部署後首次登入：以 CRON_SECRET 驗證，只能為「管理員」產生一次性登入連結。
+
+    系統還沒有任何管理員時，會以此 Email 建立第一位管理員。
+    """
     import hmac
     auth = request.headers.get("Authorization", "")
     if not settings.cron_secret or not hmac.compare_digest(auth, f"Bearer {settings.cron_secret}"):
         raise ApiError(404, "not_found", "找不到這個頁面，或你沒有查看權限。")
     user = db.scalar(select(M.User).where(func.lower(M.User.email) == body.email.lower(), M.User.role == "admin"))
+    if user is None and db.scalar(select(M.User).where(M.User.role == "admin")) is None:
+        # 系統尚無管理員：以此 Email 建立第一位管理員
+        user = M.User(email=body.email.lower(), display_name="管理員", role="admin")
+        db.add(user)
+        db.flush()
     if user is None or user.status != "active":
         raise ApiError(404, "not_found", "找不到這個頁面，或你沒有查看權限。")
     token = new_token()

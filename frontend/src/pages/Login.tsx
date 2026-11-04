@@ -76,3 +76,31 @@ export function AcceptInvite() {
   const err = useTokenLogin("/auth/accept-invite");
   return <Frame>{err ? <p role="alert">{err}</p> : <p>正在接受邀請…</p>}</Frame>;
 }
+
+// 部署後首次登入：輸入在 Vercel 設定的 CRON_SECRET，取得管理員一次性登入連結
+export function Setup() {
+  const [email, setEmail] = useState("");
+  const [secret, setSecret] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ link: string }>("/auth/bootstrap-link", { method: "POST", body: { email }, headers: { Authorization: `Bearer ${secret.trim()}` } });
+      window.location.href = r.data.link.replace(/^https?:\/\/[^/]+/, "");
+    } catch {
+      setErr("設定金鑰或 Email 不正確。");
+    } finally { setBusy(false); }
+  }
+  return (
+    <Frame>
+      <p className="muted">管理員首次登入。請輸入你的 Email，以及在 Vercel 環境變數中設定的 CRON_SECRET。系統還沒有管理員時，會以這個 Email 建立第一位管理員。</p>
+      <form onSubmit={submit} className="stack">
+        <Field label="Email"><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field label="設定金鑰（CRON_SECRET）" error={err ?? undefined}><input className="input" type="password" required value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" /></Field>
+        <button className="btn primary" disabled={busy}>{busy ? "驗證中…" : "登入"}</button>
+      </form>
+    </Frame>
+  );
+}
