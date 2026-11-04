@@ -28,7 +28,10 @@ def job_dict(j: M.Job) -> dict:
 @router.get("/jobs")
 def jobs(request: Request, admin: M.User = Depends(admin_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(M.Job).order_by(M.Job.created_at.desc()).limit(100)).all()
-    missing = db.scalars(select(M.Instrument).where(M.Instrument.state.in_(["quality_failed", "backfilling"]))).all()
+    watched = select(M.WatchlistItem.instrument_id)  # 只列有人監測的股票；沒人監測的不會抓資料，不算問題
+    missing = db.scalars(select(M.Instrument).where(M.Instrument.state.in_(["quality_failed", "backfilling"]),
+                                                    M.Instrument.delisted_on.is_(None),
+                                                    M.Instrument.id.in_(watched))).all()
     markets = [{"id": m.id, "data_cutoff": str(m.data_cutoff) if m.data_cutoff else None, "state": m.data_state}
                for m in db.scalars(select(M.Market))]
     return ok({"jobs": [job_dict(j) for j in rows], "markets": markets,

@@ -374,6 +374,10 @@ def run_market(db: Session, provider: MarketDataProvider, market: str, as_of: da
         mk.data_state = "error"
         log.exception("市場作業失敗 %s", key)
     job.heartbeat_at = datetime.now(timezone.utc)
+    ing = (job.detail or {}).get("ingest", {})
+    log.info("盤後作業 %s 來源=%s 狀態=%s 股票=%s 日線=%s 失敗=%s 延後=%s 錯誤=%s",
+             key, getattr(provider, "source", "?"), job.status, ing.get("instruments"), ing.get("bars"),
+             len(ing.get("errors") or []), ing.get("deferred"), (ing.get("errors") or [])[:3] or job.error)
     return job
 
 
