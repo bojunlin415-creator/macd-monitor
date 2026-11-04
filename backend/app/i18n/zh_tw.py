@@ -15,9 +15,9 @@ SIGNAL_NAME = {
 
 # 一句話原因（LINE 預覽行與卡片第 3 行）
 SIGNAL_SENTENCE = {
-    "NEG_WEAK": "MACD 負柱首次縮短（賣壓減弱）",
+    "NEG_WEAK": "MACD 柱體轉強（負柱首次縮短或翻正）",
     "CROSS": "DIF 向上穿越 DEA，尚未符合進場候選",
-    "POS_WEAK": "MACD 正柱首次縮短（買方減弱）",
+    "POS_WEAK": "MACD 柱體轉弱（正柱首次縮短或翻負）",
     "RISK": "買方減弱後出現放量下跌或跌破 MA20",
     "ENTRY": "金叉且站上 MA20、價漲放量",
     "EXIT": "死叉或弱化背景下放量跌破 MA20",

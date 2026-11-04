@@ -9,7 +9,8 @@ import { RuleEditor } from "./Settings";
 
 interface Week { week_key: string; status: string; o: number; h: number; l: number; c: number; v: number; elapsed: number; expected: number; dif: number | null; dea: number | null; hist: number | null; ma5: number | null; ma10: number | null; ma20: number | null; ma60: number | null; rvol: number | null }
 interface Marker { id: string; week_key: string; code: string; level: string; direction: string; status: string }
-interface WeeklyData { weeks: Week[]; markers: Marker[]; params: number[]; state: string; weeks_available: number; warmup_weeks: number; basis: string; raw_last_close: number | null }
+interface Point { week_key: string; code: string; hist: number | null; close: number; status: string }
+interface WeeklyData { weeks: Week[]; markers: Marker[]; points?: Point[]; params: number[]; state: string; weeks_available: number; warmup_weeks: number; basis: string; raw_last_close: number | null }
 
 function cssVar(name: string) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
@@ -79,10 +80,27 @@ export default function InstrumentPage() {
           <button key={k} role="tab" className="tab" aria-selected={tab === k} onClick={() => setParams({ tab: k }, { replace: true })}>{l}</button>
         ))}
       </div>
-      {tab === "signals" && <SignalHistory markers={wk.data?.markers || []} />}
+      {tab === "signals" && <><BuySellPoints points={wk.data?.points || []} /><SignalHistory markers={wk.data?.markers || []} /></>}
       {tab === "rules" && <div className="card"><RuleEditor scope={inst.id} /></div>}
       {tab === "position" && <div className="card"><p>持股與交易紀錄請至 <Link to={`/positions?instrument=${inst.id}`}>持股頁</Link> 管理。</p></div>}
       {tab === "table" && <ValueTable weeks={weeks} />}
+    </div>
+  );
+}
+
+function BuySellPoints({ points }: { points: Point[] }) {
+  if (!points.length) return null;
+  return (
+    <div className="card stack" style={{ gap: 0 }}>
+      <h3 style={{ margin: "0 0 4px" }}>歷史買進點／賣出點</h3>
+      <p className="small muted" style={{ margin: "0 0 8px" }}>依目前規則用歷史週線回算，只供對照，不會補發通知；不構成投資建議。</p>
+      {[...points].reverse().map((p) => (
+        <div key={p.week_key + p.code} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+          <span className="small muted" style={{ width: 220 }}>{weekTitle(p.week_key)}</span>
+          <strong style={{ color: p.code === "NEG_WEAK" ? "var(--rise)" : "var(--fall)", width: 70 }}>{p.code === "NEG_WEAK" ? "買進點" : "賣出點"}</strong>
+          <span className="small muted">收盤 {fmtNum(p.close)}｜柱體 {fmtNum(p.hist, 2)}{p.status !== "confirmed" ? "｜本週暫定" : ""}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -171,11 +189,18 @@ function WeeklyChart({ data }: { data: WeeklyData }) {
     const dea = cs[2].addLineSeries({ color: cssVar("--attention"), lineWidth: 2, lineStyle: LineStyle.Dashed, priceLineVisible: false });
     dea.setData(weeks.filter((w) => w.dea !== null).map((w) => ({ time: t(w), value: w.dea! })));
     const inRange = new Set(weeks.map((w) => w.week_key));
-    candle.setMarkers(data.markers.filter((m) => inRange.has(m.week_key)).sort((a, b) => a.week_key.localeCompare(b.week_key)).map((m) => ({
-      time: m.week_key as Time, position: m.direction === "bullish" ? "belowBar" : "aboveBar",
-      shape: m.direction === "bullish" ? "arrowUp" : "arrowDown", color: cssVar(LEVEL_VAR[m.level]),
-      text: { observe: "觀", attention: "注", warning: "警", candidate: "候" }[m.level] || "", id: m.id,
-    })));
+    const live = data.markers.filter((m) => inRange.has(m.week_key)).map((m) => ({
+      time: m.week_key as Time, position: (m.direction === "bullish" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+      shape: (m.direction === "bullish" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown", color: cssVar(LEVEL_VAR[m.level]),
+      text: m.code === "NEG_WEAK" ? "買" : m.code === "POS_WEAK" ? "賣" : ({ observe: "觀", attention: "注", warning: "警", candidate: "候" }[m.level] || ""), id: m.id,
+    }));
+    const liveWeeks = new Set(live.map((m) => m.time));
+    const back = (data.points || []).filter((p) => inRange.has(p.week_key) && !liveWeeks.has(p.week_key as Time)).map((p) => ({
+      time: p.week_key as Time, position: (p.code === "NEG_WEAK" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+      shape: (p.code === "NEG_WEAK" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+      color: cssVar("--candidate"), text: p.code === "NEG_WEAK" ? "買" : "賣", id: `pt-${p.week_key}-${p.code}`,
+    }));
+    candle.setMarkers([...live, ...back].sort((a, b) => String(a.time).localeCompare(String(b.time))));
     series.current = [candle, vol, hist];
     // 同步時間軸
     let syncing = false;

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import models as M
 from app.engine import indicators as I
+from app.engine import signals as S
 from app.engine.signals import PRIORITY, SIGNAL_DEFS
 from app.engine.weekly import week_key
 from app.i18n import zh_tw as T
@@ -223,6 +224,15 @@ def weekly(instrument_id: str, request: Request, weeks: int = 156, basis: str = 
                                                  M.SignalEvent.is_primary.is_(True))).all()
     markers = [{"id": e.id, "week_key": str(e.week_key), "code": e.code, "level": e.level, "direction": e.direction,
                 "status": e.status} for e in evs]
-    return ok({"weeks": out, "markers": markers, "params": [params.fast, params.slow, params.signal],
+    # 依目前規則回算歷史買進／賣出點（只顯示在圖上，不發通知）
+    th = S.Thresholds(rvol_up=rule.rvol_up) if rule else S.Thresholds()
+    points = []
+    for i in range(max(start, 2), n):
+        ev = S.classify_week(i, c.macd.hist, c.closes, c.ma[20], c.rvol, th, warmup_index=params.warmup_weeks - 1)
+        for code in (S.NEG_WEAK, S.POS_WEAK):
+            if code in ev.codes:
+                points.append({"week_key": str(c.weeks[i].week_key), "code": code, "hist": c.macd.hist[i],
+                               "close": c.weeks[i].close, "status": c.weeks[i].status})
+    return ok({"weeks": out, "markers": markers, "points": points, "params": [params.fast, params.slow, params.signal],
                "state": inst.state, "weeks_available": n, "warmup_weeks": params.warmup_weeks,
                "basis": basis, "raw_last_close": c.raw_last_close}, request)

@@ -17,7 +17,7 @@ def item(code="POS_WEAK", market="TW", kind="event", status="provisional", sym="
 
 
 def test_preview_line_matches_spec_example():
-    assert preview_line(item()) == "【賣出點｜本週暫定】台股 0000 示意股：MACD 正柱首次縮短（買方減弱） ↘"
+    assert preview_line(item()) == "【賣出點｜本週暫定】台股 0000 示意股：MACD 柱體轉弱（正柱首次縮短或翻負） ↘"
 
 
 def test_text_contains_all_layers():
