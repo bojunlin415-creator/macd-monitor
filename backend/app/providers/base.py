@@ -12,6 +12,10 @@ class ProviderError(Exception):
     """單一標的抓取失敗（無權限、查無代號等），不應讓整個市場作業失敗。"""
 
 
+class QuotaExhausted(Exception):
+    """來源的請求額度用完：已抓到的保留，其餘股票留待下次排程。"""
+
+
 @dataclass(frozen=True)
 class InstrumentInfo:
     market: str

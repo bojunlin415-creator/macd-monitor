@@ -24,7 +24,7 @@ from app.engine.weekly import (
     CorporateAction, DailyBar, QualityError, Session as CalSession, adjust_for_actions,
     aggregate_weekly, rvol_series, week_key, WEEK_CONFIRMED, WEEK_PROVISIONAL,
 )
-from app.providers.base import MarketDataProvider, ProviderError
+from app.providers.base import MarketDataProvider, ProviderError, QuotaExhausted
 
 log = logging.getLogger(__name__)
 
@@ -36,9 +36,13 @@ INGEST_BUDGET_S = 200  # Vercel 函式上限 300 秒，保留時間給計算與�
 def sync_instruments(db: Session, provider: MarketDataProvider, market: str) -> None:
     """依行情來源更新股票清單；換了來源時，舊來源的股票標記下市，不再出現在搜尋與計算中。"""
     listed = set()
+    existing = {(i.mic, i.symbol): i for i in db.scalars(select(M.Instrument).where(M.Instrument.market_id == market))}
+    by_symbol = {i.symbol: i for i in existing.values()}
     for info in provider.instruments(market):
+        if info.symbol in listed:
+            continue
         listed.add(info.symbol)
-        inst = db.scalar(select(M.Instrument).where(M.Instrument.mic == info.mic, M.Instrument.symbol == info.symbol))
+        inst = existing.get((info.mic, info.symbol)) or by_symbol.get(info.symbol)
         if inst is None:
             db.add(M.Instrument(market_id=market, mic=info.mic, symbol=info.symbol, name=info.name,
                                 currency=info.currency, lot_size=info.lot_size, license_status=provider.source))
@@ -91,16 +95,21 @@ def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of:
                 continue
         try:
             fetched = provider.daily_bars(market, inst.symbol, fetch_from, as_of)
+            actions = provider.corporate_actions(market, inst.symbol)
         except ProviderError as e:  # 單一標的失敗（無權限、查無代號）不影響其他股票
             inst.state = "unavailable"
             errors.append(f"{inst.symbol}: {e}")
             continue
+        except QuotaExhausted as e:  # 額度用完：已抓的保留，剩下的留待下次
+            deferred += len(insts) - insts.index(inst)
+            errors.append(str(e))
+            break
         for b in fetched:
             db.add(M.DailyBarRow(instrument_id=inst.id, date=b.date, source=provider.source, revision=1,
                                  open=b.open, high=b.high, low=b.low, close=b.close, volume=b.volume))
             n_bars += 1
         have = {(a.effective_date, a.type) for a in db.scalars(select(M.CorporateActionRow).where(M.CorporateActionRow.instrument_id == inst.id))}
-        for a in provider.corporate_actions(market, inst.symbol):
+        for a in actions:
             if (a.effective_date, a.kind) not in have:
                 db.add(M.CorporateActionRow(instrument_id=inst.id, effective_date=a.effective_date, type=a.kind,
                                             price_factor=a.price_factor, volume_factor=a.volume_factor))
@@ -372,6 +381,9 @@ def run_market(db: Session, provider: MarketDataProvider, market: str, as_of: da
     job.status = "running"
     db.flush()
     try:
+        if not getattr(provider, "sync_on_startup", True):
+            with db.begin_nested():  # 股票清單很大的來源：每次盤後作業同步一次（上市、下市）
+                sync_instruments(db, provider, market)
         with db.begin_nested():  # 失敗時整批回滾，事件與待送佇列不會只寫一半
             watched = {w.instrument_id for w in db.scalars(select(M.WatchlistItem))}
             ing = ingest_market(db, provider, market, as_of, watched)

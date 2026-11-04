@@ -50,6 +50,7 @@ export default function InstrumentPage() {
           <span>資料截至 {fmtDate(inst.market_cutoff)} 收盤</span>
           {inst.license_status === "sample" && <span>示意資料，非真實行情</span>}
           {inst.license_status === "jquants" && <span>資料來源：J-Quants（已還原權值）</span>}
+          {inst.license_status === "finmind" && <span>資料來源：FinMind（已還原除權息）</span>}
         </div>
         {last && (
           <div className="row">

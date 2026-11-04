@@ -22,7 +22,9 @@ def seed(db: Session, admin_email: str | None = None) -> None:
             db.add(M.Market(id=mid, mic=mic, timezone=tz, currency=ccy, close_time=close))
     db.flush()
     for mid, *_ in MARKETS:
-        sync_instruments(db, get_provider(mid), mid)
+        provider = get_provider(mid)
+        if getattr(provider, "sync_on_startup", True):  # 清單很大的來源改在盤後作業時同步
+            sync_instruments(db, provider, mid)
     if admin_email and db.scalar(select(M.User).where(M.User.email == admin_email)) is None:
         db.add(M.User(email=admin_email, display_name="管理員", role="admin"))
 

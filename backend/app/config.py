@@ -34,6 +34,7 @@ class Settings:
     data_provider: str = field(default_factory=lambda: os.getenv("DATA_PROVIDER", "sample"))
     cron_secret: str = field(default_factory=lambda: os.getenv("CRON_SECRET", ""))
     admin_email: str = field(default_factory=lambda: os.getenv("ADMIN_EMAIL", ""))
+    finmind_token: str = field(default_factory=lambda: os.getenv("FINMIND_TOKEN", ""))
     jquants_api_key: str = field(default_factory=lambda: os.getenv("JQUANTS_API_KEY", ""))
     jquants_plan: str = field(default_factory=lambda: os.getenv("JQUANTS_PLAN", "light").strip().lower())
     google_client_id: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))
