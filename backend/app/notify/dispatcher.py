@@ -43,11 +43,12 @@ def item_from_payload(p: dict, kind: str, as_of: Optional[date]) -> Notification
     )
 
 
-def dispatch_pending(db: Session, client, now: Optional[datetime] = None) -> dict:
+def dispatch_pending(db: Session, client, now: Optional[datetime] = None, user_id: Optional[str] = None) -> dict:
     now = now or _now()
-    rows = db.scalars(select(M.NotificationOutbox).where(
-        M.NotificationOutbox.status.in_(["pending", "retry"]))
-        .order_by(M.NotificationOutbox.created_at)).all()
+    q = select(M.NotificationOutbox).where(M.NotificationOutbox.status.in_(["pending", "retry"]))
+    if user_id:  # 只送某位使用者的佇列（綁定完成、測試訊息時立即送出）
+        q = q.where(M.NotificationOutbox.user_id == user_id)
+    rows = db.scalars(q.order_by(M.NotificationOutbox.created_at)).all()
     rows = [r for r in rows if _aware(r.next_attempt_at) <= now]
     by_user: dict[str, list[M.NotificationOutbox]] = {}
     for r in rows:

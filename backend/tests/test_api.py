@@ -248,3 +248,36 @@ def test_google_login_accepts_invitation(env, monkeypatch, google_off):
 def test_google_disabled_by_default(env):
     r = TestClient(app).get("/api/v1/auth/providers")
     assert r.json()["data"] == {"google": False}
+
+
+# ---- LINE 綁定 Webhook ----
+def test_line_webhook_binds_and_replies(env, monkeypatch):
+    import base64, hashlib, hmac, json
+    from app.config import settings
+    from app.workers import runner
+    object.__setattr__(settings, "line_channel_secret", "chs")
+    try:
+        c = login("member@example.com")
+        code = c.post("/api/v1/line/link").json()["data"]["code"]
+        sent = []
+
+        class Fake:
+            def reply(self, token, text):
+                sent.append((token, text)); return True
+        monkeypatch.setattr(runner, "line_client", lambda: Fake())
+
+        def post(events):
+            raw = json.dumps({"events": events}).encode()
+            sig = base64.b64encode(hmac.new(b"chs", raw, hashlib.sha256).digest()).decode()
+            return TestClient(app).post("/api/v1/webhooks/line", content=raw, headers={"X-Line-Signature": sig})
+
+        assert post([]).status_code == 200  # LINE 後台的 Verify
+        ev = {"type": "message", "webhookEventId": "e1", "replyToken": "rt1", "source": {"type": "user", "userId": "U123"},
+              "message": {"type": "text", "text": f"綁定 {code}"}}
+        assert post([ev]).status_code == 200
+        assert sent and sent[0][0] == "rt1" and "綁定完成" in sent[0][1]
+        assert c.get("/api/v1/line/status").json()["data"]["status"] == "active"
+        bad = TestClient(app).post("/api/v1/webhooks/line", content=b'{"events":[]}', headers={"X-Line-Signature": "x"})
+        assert bad.status_code == 401
+    finally:
+        object.__setattr__(settings, "line_channel_secret", "")

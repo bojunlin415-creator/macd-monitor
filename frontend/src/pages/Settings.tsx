@@ -125,7 +125,7 @@ function NotifySettings() {
       <h2>LINE 綁定</h2>
       <LineLinkPanel />
       {me.line.status === "active" && <div className="row">
-        <button className="btn" onClick={async () => { try { await api("/line/test", { method: "POST" }); setToast("測試訊息已排入，稍後會送達。"); dl.reload(); } catch (e) { setToast((e as ApiError).message); } }}>傳送測試訊息</button>
+        <button className="btn" onClick={async () => { try { await api("/line/test", { method: "POST" }); setToast("測試訊息已送出，請查看 LINE。"); dl.reload(); } catch (e) { setToast((e as ApiError).message); } }}>傳送測試訊息</button>
         <button className="btn danger" onClick={() => setConfirmUnlink(true)}>解除綁定</button>
       </div>}
 

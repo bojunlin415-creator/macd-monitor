@@ -14,6 +14,7 @@ from typing import Optional
 log = logging.getLogger(__name__)
 
 PUSH_URL = "https://api.line.me/v2/bot/message/push"
+REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 
 @dataclass
@@ -50,6 +51,19 @@ class LineClient:
             return PushResult(False, None, error_class=type(e).__name__)
 
 
+    def reply(self, reply_token: str, text: str) -> bool:
+        """以回覆權杖回覆使用者訊息（不計入每月推播額度）。"""
+        body = json.dumps({"replyToken": reply_token, "messages": [{"type": "text", "text": text}]}).encode()
+        req = urllib.request.Request(REPLY_URL, data=body, method="POST", headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {self.token}"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return 200 <= r.status < 300
+        except (urllib.error.URLError, TimeoutError):
+            log.warning("LINE 回覆失敗")
+            return False
+
+
 class DryRunClient:
     """開發／測試環境：不真的送出，只記錄。測試環境禁止對正式成員推播。"""
 
@@ -60,6 +74,11 @@ class DryRunClient:
         self.sent.append((to, messages, retry_key))
         log.info("［乾跑］LINE 推播給 %s：%s", to[:6] + "…", messages[0].get("altText") or messages[0].get("text"))
         return PushResult(True, 200, "dry-run")
+
+    def reply(self, reply_token: str, text: str) -> bool:
+        self.sent.append(("reply:" + reply_token, [{"type": "text", "text": text}], ""))
+        log.info("［乾跑］LINE 回覆：%s", text)
+        return True
 
 
 def verify_signature(channel_secret: str, raw_body: bytes, signature: str) -> bool:
