@@ -34,6 +34,7 @@ class Settings:
     data_provider: str = field(default_factory=lambda: os.getenv("DATA_PROVIDER", "sample"))
     cron_secret: str = field(default_factory=lambda: os.getenv("CRON_SECRET", ""))
     admin_email: str = field(default_factory=lambda: os.getenv("ADMIN_EMAIL", ""))
+    infoway_api_key: str = field(default_factory=lambda: os.getenv("INFOWAY_API_KEY", ""))
     google_client_id: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""))
     google_client_secret: str = field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""))
     resend_api_key: str = field(default_factory=lambda: os.getenv("RESEND_API_KEY", ""))

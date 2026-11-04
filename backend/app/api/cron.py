@@ -43,7 +43,7 @@ def cron_market(market: str, request: Request):
         raise ApiError(404, "not_found", "找不到這個頁面，或你沒有查看權限。")
     d = last_trading_day(market, datetime.now(ZoneInfo("UTC")))
     with session_scope() as db:
-        job = run_market(db, get_provider(), market, d, version=datetime.now(ZoneInfo("UTC")).strftime("%H%M"))
+        job = run_market(db, get_provider(market), market, d, version=datetime.now(ZoneInfo("UTC")).strftime("%H%M"))
         result = {"job": job.job_key, "status": job.status, "detail": job.detail, "error": job.error}
     with session_scope() as db:
         result["dispatch"] = dispatch_pending(db, line_client())

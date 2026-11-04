@@ -8,6 +8,10 @@ from typing import Protocol
 from app.engine.weekly import CorporateAction, DailyBar, Session
 
 
+class ProviderError(Exception):
+    """單一標的抓取失敗（無權限、查無代號等），不應讓整個市場作業失敗。"""
+
+
 @dataclass(frozen=True)
 class InstrumentInfo:
     market: str

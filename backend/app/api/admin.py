@@ -48,7 +48,7 @@ def run(body: RunIn, request: Request, admin: M.User = Depends(admin_user), db: 
     d = body.as_of or date.today()
     existing = db.scalar(select(M.Job).where(M.Job.job_key.like(f"{body.market}|{d}|after_close|%")).order_by(M.Job.created_at.desc()))
     version = "1" if existing is None else f"manual-{len(db.scalars(select(M.Job).where(M.Job.job_key.like(f'{body.market}|{d}|%'))).all()) + 1}"
-    job = run_market(db, get_provider(), body.market, d, version)
+    job = run_market(db, get_provider(body.market), body.market, d, version)
     db.flush()
     stats = dispatch_pending(db, line_client())  # 重跑不繞過通知去重：佇列唯一鍵保證
     audit(db, admin, "job_run", f"job:{job.job_key}", {"dispatch": stats})

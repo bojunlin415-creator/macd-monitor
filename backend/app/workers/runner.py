@@ -83,7 +83,7 @@ def main() -> None:
     init_db()
     if a.cmd == "once":
         with session_scope() as db:
-            job = run_market(db, get_provider(), a.market, a.date, a.version)
+            job = run_market(db, get_provider(a.market), a.market, a.date, a.version)
             print(job.job_key, job.status, job.detail, job.error or "")
         with session_scope() as db:
             print("LINE 投遞：", dispatch_pending(db, line_client()))

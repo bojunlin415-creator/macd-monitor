@@ -49,6 +49,7 @@ export default function InstrumentPage() {
           <span>{MARKET[inst.market]}・{inst.mic}・{inst.currency}</span>
           <span>資料截至 {fmtDate(inst.market_cutoff)} 收盤</span>
           {inst.license_status === "sample" && <span>示意資料，非真實行情</span>}
+          {inst.license_status === "infoway" && <span>資料來源：Infoway（未還原權值）</span>}
         </div>
         {last && (
           <div className="row">
