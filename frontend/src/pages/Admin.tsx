@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { ErrorBox, Field, Skeleton, Toast, useApi } from "../components/ui";
-import { DATA_STATE, INSTRUMENT_STATE, JOB_STATUS, MARKET, ROLE, USER_STATUS, fmtDate } from "../i18n";
+import { DATA_STATE, INSTRUMENT_STATE, JOB_STATUS, MARKET, PLAN, ROLE, USER_STATUS, fmtDate } from "../i18n";
 
 export default function Admin() {
   const { me } = useAuth();
@@ -85,6 +85,10 @@ function Members() {
   async function setStatus(id: string, status: string) {
     try { await api(`/admin/members/${id}/status`, { method: "PUT", body: { status } }); reload(); } catch (e) { setMsg((e as ApiError).message); }
   }
+  async function setPlan(id: string, plan: string) {
+    try { await api(`/admin/members/${id}/plan`, { method: "PUT", body: { plan } }); reload(); } catch (e) { setMsg((e as ApiError).message); }
+  }
+  const pending = (data || []).filter((u) => u.status === "pending").length;
   return (
     <div className="stack">
       <div className="card stack">
@@ -93,10 +97,13 @@ function Members() {
         {msg && <p role="status" className="small" style={{ wordBreak: "break-all" }}>{msg}</p>}
       </div>
       <div className="card tblwrap">
-        <table className="tbl cards"><thead><tr><th>Email</th><th>角色</th><th>狀態</th><th></th></tr></thead><tbody>
+        {pending > 0 && <p className="banner" role="status">有 {pending} 位會員申請等待核准。</p>}
+        <table className="tbl cards"><thead><tr><th>Email</th><th>角色</th><th>方案</th><th>狀態</th><th></th></tr></thead><tbody>
           {(data || []).map((u) => (
-            <tr key={u.id}><td data-label="Email">{u.email}</td><td data-label="角色">{ROLE[u.role]}</td><td data-label="狀態">{USER_STATUS[u.status]}</td>
-              <td>{u.role !== "admin" && <button className="btn link" onClick={() => setStatus(u.id, u.status === "active" ? "disabled" : "active")}>{u.status === "active" ? "停用" : "重新啟用"}</button>}</td></tr>
+            <tr key={u.id}><td data-label="Email">{u.email}</td><td data-label="角色">{ROLE[u.role]}</td>
+              <td data-label="方案">{u.role === "admin" ? "（不限）" : <select className="input" aria-label={`${u.email} 的方案`} value={u.plan} onChange={(e) => setPlan(u.id, e.target.value)}>{Object.entries(PLAN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</td>
+              <td data-label="狀態">{USER_STATUS[u.status]}</td>
+              <td>{u.role !== "admin" && <button className="btn link" onClick={() => setStatus(u.id, u.status === "active" ? "disabled" : "active")}>{u.status === "active" ? "停用" : u.status === "pending" ? "核准" : "重新啟用"}</button>}</td></tr>
           ))}
         </tbody></table>
       </div>
@@ -104,7 +111,7 @@ function Members() {
   );
 }
 
-const ACTION: Record<string, string> = { login: "登入", invite: "邀請成員", accept_invite: "接受邀請", consent: "同意告知", line_link: "綁定 LINE", line_unlink: "解除 LINE", job_run: "手動執行作業", member_active: "啟用成員", member_disabled: "停用成員" };
+const ACTION: Record<string, string> = { login: "登入", invite: "邀請成員", accept_invite: "接受邀請", consent: "同意告知", line_link: "綁定 LINE", line_unlink: "解除 LINE", job_run: "手動執行作業", member_active: "啟用成員", member_disabled: "停用成員", signup: "會員註冊", member_plan: "調整方案" };
 function Audit() {
   const { data } = useApi<any[]>("/admin/audit");
   return (

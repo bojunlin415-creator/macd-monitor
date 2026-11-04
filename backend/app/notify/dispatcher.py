@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import models as M
+from app.membership import plan_of
 from app.engine.signals import PRIORITY
 from app.notify.crypto import decrypt
 from app.notify.line_messages import ConditionLine, NotificationItem, plan_batch
@@ -65,6 +66,7 @@ def dispatch_pending(db: Session, client, now: Optional[datetime] = None, user_i
         to = decrypt(binding.line_user_id_enc)
         prefs = db.get(M.NotificationPrefs, user_id)
         threshold = prefs.merge_threshold if prefs else 5
+        threshold = min(threshold, plan_of(db, user).line_merge_max)  # 免費方案較早合併，節省 LINE 訊息量
         # 同股同批次同種類的多個代碼併成一張卡：主標籤＋「也符合」
         groups: dict[tuple, list[M.NotificationOutbox]] = {}
         for r in urows:

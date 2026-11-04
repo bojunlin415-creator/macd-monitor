@@ -117,7 +117,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)
     display_name: Mapped[str] = mapped_column(String(80), default="")
     role: Mapped[str] = mapped_column(String(10), default="member")  # member / admin
-    status: Mapped[str] = mapped_column(String(10), default="active")  # active / disabled
+    status: Mapped[str] = mapped_column(String(10), default="active")  # active / pending（待核准）/ disabled
     locale: Mapped[str] = mapped_column(String(10), default="zh-TW")
     timezone: Mapped[str] = mapped_column(String(40), default="Asia/Taipei")
     theme: Mapped[str] = mapped_column(String(8), default="system")  # system / light / dark
@@ -156,6 +156,62 @@ class WebSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     csrf_token: Mapped[str] = mapped_column(String(64))
+
+
+class SignupToken(Base):
+    """新使用者註冊用的一次性 Email 連結：驗證後才建立帳號，避免打錯字留下無效帳號。"""
+
+    __tablename__ = "signup_tokens"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+# ---- 會員方案與金流（金流資料表先預留，尚未啟用） -------------------------------
+class Membership(Base):
+    """使用者目前的方案。沒有這一列時視為免費方案（見 app/membership.py）。"""
+
+    __tablename__ = "memberships"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    plan: Mapped[str] = mapped_column(String(16), default="free")
+    source: Mapped[str] = mapped_column(String(12), default="admin")  # admin / payment
+    # 付費方案到期日；到期後自動回到免費方案。空值表示不會到期（例如管理員贈送）。
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class Subscription(Base):
+    """訂閱（預留給綠界／藍新等定期定額）。"""
+
+    __tablename__ = "subscriptions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    plan: Mapped[str] = mapped_column(String(16))
+    provider: Mapped[str] = mapped_column(String(16))  # ecpay / newebpay / stripe
+    provider_ref: Mapped[Optional[str]] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending/active/past_due/canceled
+    period_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Payment(Base):
+    """單筆付款紀錄（預留）。金額以新台幣整數元記錄。"""
+
+    __tablename__ = "payments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    subscription_id: Mapped[Optional[str]] = mapped_column(ForeignKey("subscriptions.id"))
+    provider: Mapped[str] = mapped_column(String(16))
+    merchant_trade_no: Mapped[str] = mapped_column(String(32), unique=True)  # 綠界 MerchantTradeNo 上限 20 字
+    amount: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="TWD")
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending/paid/failed/refunded
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    raw: Mapped[Optional[dict]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 # ---- 個人資料 -------------------------------------------------------------

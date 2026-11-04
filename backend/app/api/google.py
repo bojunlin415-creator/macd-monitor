@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import models as M
+from app.membership import signup_mode
 from app.api.deps import SESSION_COOKIE, _aware, audit, create_session, get_db, h
 
 log = logging.getLogger(__name__)
@@ -101,14 +102,20 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "",
     if user is None:
         inv = db.scalar(select(M.Invitation).where(func.lower(M.Invitation.email) == email, M.Invitation.used_at.is_(None))
                         .order_by(M.Invitation.expires_at.desc()))
-        if inv is None or _aware(inv.expires_at) < datetime.now(timezone.utc):
+        if inv is not None and _aware(inv.expires_at) >= datetime.now(timezone.utc):
+            inv.used_at = datetime.now(timezone.utc)
+            user = M.User(email=email)
+            db.add(user)
+            db.flush()
+            audit(db, user, "accept_invite", f"user:{user.id}", {"method": "google"})
+        elif signup_mode() == "invite":
             return _fail("not_invited")
-        inv.used_at = datetime.now(timezone.utc)
-        user = M.User(email=email)
-        db.add(user)
-        db.flush()
-        audit(db, user, "accept_invite", f"user:{user.id}", {"method": "google"})
-    elif user.status != "active":
+        else:
+            from app.api.auth import register
+            user = register(db, email, "google")
+    if user.status == "pending":
+        return _fail("pending_approval")
+    if user.status != "active":
         return _fail("not_invited")
 
     sid, _csrf = create_session(db, user)

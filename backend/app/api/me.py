@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import models as M
+from app.membership import PLANS, plan_dict, plan_of
 from app.engine.indicators import MacdParams
 from app.engine.signals import MANDATORY_CODES, SIGNAL_DEFS
 from app.engine.weekly import week_key
@@ -21,7 +22,7 @@ from app.api.deps import ApiError, audit, current_user, get_db, next_week_monday
 
 router = APIRouter(tags=["me"])
 
-WATCH_LIMIT = 200
+WATCH_LIMIT = PLANS["pro"].watch_limit  # 單次匯入／請求的最大筆數；實際上限依方案（見 app/membership.py）
 CONSENT_VERSION = "1.0"
 
 
@@ -57,17 +58,22 @@ def _lock_quota(db: Session, user_id: str) -> int:
 
 
 def _add_watches(db: Session, user: M.User, instrument_ids: list[str], group_id: Optional[str] = None) -> list[M.WatchlistItem]:
+    plan = plan_of(db, user)
+    limit = plan.watch_limit
     used = _lock_quota(db, user.id)
     existing = set(db.scalars(select(M.WatchlistItem.instrument_id).where(M.WatchlistItem.user_id == user.id)))
     new_ids = list(dict.fromkeys(i for i in instrument_ids if i not in existing))  # 重複 ID 不重複計數
-    if used + len(new_ids) > WATCH_LIMIT:
-        over = used + len(new_ids) - WATCH_LIMIT
-        raise ApiError(409, "quota_exceeded", f"超過 200 檔上限，請再取消勾選 {over} 檔。", retryable=False)
+    if used + len(new_ids) > limit:
+        over = used + len(new_ids) - limit
+        raise ApiError(409, "quota_exceeded", f"{plan.name}的自選股上限是 {limit} 檔，請再取消勾選 {over} 檔。", retryable=False)
     this_week = week_key(date.today())
     items = []
     for iid in new_ids:
-        if db.get(M.Instrument, iid) is None:
+        inst = db.get(M.Instrument, iid)
+        if inst is None:
             raise ApiError(422, "unknown_instrument", "找不到指定的股票。")
+        if inst.market_id not in plan.markets:
+            raise ApiError(403, "plan_market", f"{plan.name}不包含這個市場的股票。")
         w = M.WatchlistItem(user_id=user.id, instrument_id=iid, group_id=group_id, baseline_week=this_week)
         db.add(w)
         items.append(w)
@@ -86,7 +92,7 @@ def watch_dict(w: M.WatchlistItem, group_names: dict) -> dict:
 def list_watch(request: Request, user: M.User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(M.WatchlistItem).where(M.WatchlistItem.user_id == user.id).order_by(M.WatchlistItem.created_at)).all()
     groups = {g.id: g.name for g in db.scalars(select(M.WatchGroup).where(M.WatchGroup.user_id == user.id))}
-    return ok({"items": [watch_dict(w, groups) for w in rows], "used": len(rows), "limit": WATCH_LIMIT,
+    return ok({"items": [watch_dict(w, groups) for w in rows], "used": len(rows), "limit": plan_of(db, user).watch_limit,
                "groups": [{"id": k, "name": v} for k, v in groups.items()]}, request)
 
 
@@ -173,8 +179,9 @@ async def import_preview(request: Request, file: UploadFile = File(...), user: M
     pid = str(uuid.uuid4())
     _PREVIEWS[pid] = (time.time(), user.id, rows)
     ok_count = sum(1 for r in rows if r["kind"] == "ok")
-    return ok({"preview_id": pid, "rows": rows, "used": len(existing), "limit": WATCH_LIMIT,
-               "over_by": max(0, len(existing) + ok_count - WATCH_LIMIT)}, request)
+    limit = plan_of(db, user).watch_limit
+    return ok({"preview_id": pid, "rows": rows, "used": len(existing), "limit": limit,
+               "over_by": max(0, len(existing) + ok_count - limit)}, request)
 
 
 class CommitIn(BaseModel):
@@ -292,6 +299,7 @@ def me_dict(db: Session, user: M.User) -> dict:
         "theme": user.theme, "updown_color": user.updown_color, "table_density": user.table_density,
         "timezone": user.timezone, "consent_version": user.consent_version, "consent_required": CONSENT_VERSION,
         "onboarding_done": user.onboarding_done,
+        "plan": {"id": plan_of(db, user).id, "name": plan_of(db, user).name},
         "line": {"status": b.status if b else "none", "linked_at": b.linked_at.isoformat() if b and b.linked_at else None},
         "notify": {"muted_codes": p.muted_codes or [], "merge_threshold": p.merge_threshold,
                    "weekly_summary": p.weekly_summary, "paused_until": str(p.paused_until) if p.paused_until else None,
@@ -365,3 +373,18 @@ def consent(request: Request, user: M.User = Depends(current_user), db: Session 
 def onboarding_done(request: Request, user: M.User = Depends(current_user), db: Session = Depends(get_db)):
     user.onboarding_done = True
     return ok(me_dict(db, user), request)
+
+
+# ---- 會員方案 --------------------------------------------------------------
+@router.get("/me/membership")
+def membership(request: Request, user: M.User = Depends(current_user), db: Session = Depends(get_db)):
+    plan = plan_of(db, user)
+    m = db.get(M.Membership, user.id)
+    used = db.scalar(select(func.count()).select_from(M.WatchlistItem).where(M.WatchlistItem.user_id == user.id))
+    return ok({
+        "plan": plan_dict(plan),
+        "current_period_end": m.current_period_end.isoformat() if m and m.current_period_end and plan.id == m.plan else None,
+        "usage": {"watchlist": used},
+        "plans": [plan_dict(p) for p in PLANS.values()],
+        "payments_enabled": any(p.purchasable for p in PLANS.values()),
+    }, request)

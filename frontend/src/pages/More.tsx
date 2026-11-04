@@ -3,7 +3,7 @@ import { useAuth } from "../lib/auth";
 
 export default function More() {
   const { me } = useAuth();
-  const items = [["/backtest", "回測"], ["/settings", "設定"], ...(me?.role === "admin" ? [["/admin", "管理中心"]] : [])];
+  const items = [["/membership", "我的方案"], ["/backtest", "回測"], ["/settings", "設定"], ...(me?.role === "admin" ? [["/admin", "管理中心"]] : [])];
   return (
     <>
       <h1>更多</h1>
