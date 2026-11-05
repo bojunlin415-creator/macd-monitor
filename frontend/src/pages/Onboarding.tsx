@@ -61,7 +61,7 @@ export default function Onboarding() {
         </>}
         {step === 3 && <>
           <h1>確認監測規則</h1>
-          <p style={{ fontSize: 20 }}>MACD 12／26／9，柱體首次縮短即通知買進點／賣出點。</p>
+          <p style={{ fontSize: 20 }}>MACD 12／26／9，六種訊號分三層：早期預警、交易候選、趨勢確認。</p>
           <details><summary>進階設定</summary><p className="small muted">可在「設定 › 策略設定」調整 MACD 參數與放量門檻，變更於下一交易週生效。</p></details>
           <div className="row"><button className="btn" onClick={() => setStep(2)}>上一步</button><button className="btn primary" onClick={() => setStep(4)}>使用這個規則</button></div>
         </>}

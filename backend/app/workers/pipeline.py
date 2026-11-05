@@ -224,7 +224,7 @@ def apply_evaluation(db: Session, *, user: M.User, inst: M.Instrument, watch: M.
     """把第 t 週的判斷寫入事件表與待送佇列；回傳新排入的 outbox id。"""
     wk = comp.weeks[t].week_key
     ev = S.classify_week(t, comp.macd.hist, comp.closes, comp.ma[20], comp.rvol, thresholds,
-                         warmup_index=comp.warmup_index())
+                         warmup_index=comp.warmup_index(), dif=comp.macd.dif, dea=comp.macd.dea, ma10=comp.ma[10])
     if not ev.evaluable:
         return []
     pkey = param_hash(comp.params, thresholds.rvol_up)
@@ -296,19 +296,22 @@ def _payload(inst: M.Instrument, event: M.SignalEvent, snap: M.IndicatorSnapshot
         "params": d["params"], "elapsed": d["elapsed"], "expected": d["expected"],
         "week_no": wk.isocalendar()[1], "event_id": event.id, "instrument_id": inst.id,
         "conditions": [{"key": c.key, "state": c.state} for c in ev.conditions
-                       if c.key in ("pos_shrink", "neg_shrink", "golden_cross", "death_cross", "volume_down_price", "break_ma20", "volume_up", "above_ma20")
+                       if c.key in _SHOWN
                        and (c.state == S.MET or c.key in _RELEVANT.get(event.code, ()))],
     }
 
 
 _RELEVANT = {
-    "POS_WEAK": ("pos_shrink", "volume_down_price", "break_ma20"),
-    "RISK": ("pos_shrink", "volume_down_price", "break_ma20"),
-    "EXIT": ("death_cross", "volume_down_price", "break_ma20"),
     "NEG_WEAK": ("neg_shrink",),
-    "CROSS": ("golden_cross", "above_ma20", "volume_up"),
+    "CROSS": ("golden_cross", "dif_up", "above_ma10"),  # 建議再檢查 DIF 是否上升、是否站上 10 週線
+    "TREND_UP": ("trend_up", "above_ma20"),
+    "POS_WEAK": ("pos_shrink",),
+    "EXIT": ("death_cross", "below_ma10", "below_ma20"),  # 同時跌破 10／20 週線風險更強
+    "TREND_DOWN": ("trend_down", "below_ma20"),
+    "RISK": ("pos_shrink", "volume_down_price", "break_ma20"),
     "ENTRY": ("golden_cross", "above_ma20", "volume_up"),
 }
+_SHOWN = {k for keys in _RELEVANT.values() for k in keys}
 
 
 def evaluate_market(db: Session, provider: MarketDataProvider, market: str, as_of: date, batch_id: str) -> dict:

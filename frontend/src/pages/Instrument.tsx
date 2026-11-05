@@ -4,7 +4,7 @@ import { createChart, IChartApi, ISeriesApi, LineStyle, Time } from "lightweight
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Change, ErrorBox, Instrument, SignalBadge, Skeleton, StatusTag, useApi } from "../components/ui";
-import { INSTRUMENT_STATE, MARKET, SOURCE, WEEK_STATUS, cur, exch, fmtDate, fmtNum, weekTitle } from "../i18n";
+import { INSTRUMENT_STATE, LEVEL_OF, MARKET, SIGNAL_NAME, SOURCE, WEEK_STATUS, cur, exch, fmtDate, fmtNum, weekTitle } from "../i18n";
 import { RuleEditor } from "./Settings";
 
 interface Week { week_key: string; status: string; o: number; h: number; l: number; c: number; v: number; elapsed: number; expected: number; dif: number | null; dea: number | null; hist: number | null; ma5: number | null; ma10: number | null; ma20: number | null; ma60: number | null; rvol: number | null }
@@ -92,12 +92,12 @@ function BuySellPoints({ points }: { points: Point[] }) {
   if (!points.length) return null;
   return (
     <div className="card stack" style={{ gap: 0 }}>
-      <h3 style={{ margin: "0 0 4px" }}>歷史買進點／賣出點</h3>
+      <h3 style={{ margin: "0 0 4px" }}>歷史訊號回算（B2／B3／S2／S3）</h3>
       <p className="small muted" style={{ margin: "0 0 8px" }}>依目前規則用歷史週線回算，只供對照，不會補發通知；不構成投資建議。</p>
       {[...points].reverse().map((p) => (
         <div key={p.week_key + p.code} className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
           <span className="small muted" style={{ width: 220 }}>{weekTitle(p.week_key)}</span>
-          <strong style={{ color: p.code === "NEG_WEAK" ? "var(--rise)" : "var(--fall)", width: 70 }}>{p.code === "NEG_WEAK" ? "買進點" : "賣出點"}</strong>
+          <strong style={{ color: BULL.has(p.code) ? "var(--rise)" : "var(--fall)", width: 150 }}>{SIGNAL_NAME[p.code]}</strong>
           <span className="small muted">收盤 {fmtNum(p.close)}｜柱體 {fmtNum(p.hist, 2)}{p.status !== "confirmed" ? "｜本週暫定" : ""}</span>
         </div>
       ))}
@@ -143,7 +143,9 @@ function weekLabel(tm: any): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}～${p(e.getMonth() + 1)}/${p(e.getDate())} 當週`;
 }
-const LEVEL_VAR: Record<string, string> = { observe: "--observe", attention: "--attention", warning: "--warning", candidate: "--candidate" };
+const LEVEL_VAR: Record<string, string> = { observe: "--observe", attention: "--attention", warning: "--warning", candidate: "--candidate", trend: "--attention" };
+const TAG: Record<string, string> = { NEG_WEAK: "B1", CROSS: "B2", TREND_UP: "B3", POS_WEAK: "S1", EXIT: "S2", TREND_DOWN: "S3" };
+const BULL = new Set(["NEG_WEAK", "CROSS", "TREND_UP"]);
 
 // 週 K＋均線、成交量、MACD 三區，時間軸與游標同步；鍵盤左右鍵逐週移動
 function WeeklyChart({ data }: { data: WeeklyData }) {
@@ -192,13 +194,13 @@ function WeeklyChart({ data }: { data: WeeklyData }) {
     const live = data.markers.filter((m) => inRange.has(m.week_key)).map((m) => ({
       time: m.week_key as Time, position: (m.direction === "bullish" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
       shape: (m.direction === "bullish" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown", color: cssVar(LEVEL_VAR[m.level]),
-      text: m.code === "NEG_WEAK" ? "買" : m.code === "POS_WEAK" ? "賣" : ({ observe: "觀", attention: "注", warning: "警", candidate: "候" }[m.level] || ""), id: m.id,
+      text: TAG[m.code] || "", id: m.id,
     }));
     const liveWeeks = new Set(live.map((m) => m.time));
     const back = (data.points || []).filter((p) => inRange.has(p.week_key) && !liveWeeks.has(p.week_key as Time)).map((p) => ({
-      time: p.week_key as Time, position: (p.code === "NEG_WEAK" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
-      shape: (p.code === "NEG_WEAK" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
-      color: cssVar("--candidate"), text: p.code === "NEG_WEAK" ? "買" : "賣", id: `pt-${p.week_key}-${p.code}`,
+      time: p.week_key as Time, position: (BULL.has(p.code) ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+      shape: (BULL.has(p.code) ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+      color: cssVar(LEVEL_VAR[LEVEL_OF[p.code]] || "--candidate"), text: TAG[p.code] || "", id: `pt-${p.week_key}-${p.code}`,
     }));
     candle.setMarkers([...live, ...back].sort((a, b) => String(a.time).localeCompare(String(b.time))));
     series.current = [candle, vol, hist];

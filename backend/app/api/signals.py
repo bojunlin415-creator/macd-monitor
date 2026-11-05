@@ -23,12 +23,7 @@ router = APIRouter(tags=["signals"])
 
 LIVE = ("provisional", "confirmed")
 
-UPGRADE_HINTS = {
-    "NEG_WEAK": ("ENTRY", ["golden_cross", "above_ma20", "price_up", "volume_up"]),
-    "CROSS": ("ENTRY", ["above_ma20", "price_up", "volume_up"]),
-    "POS_WEAK": ("RISK", ["volume_down_price", "break_ma20"]),  # 任一
-    "RISK": ("EXIT", ["death_cross", "volume_down_price", "break_ma20"]),
-}
+UPGRADE_HINTS: dict = {}  # 六訊號版不再有「升級」提示，改在條件檢核列出建議再檢查的項目
 
 
 def _holdings(db: Session, user_id: str) -> set[str]:
@@ -147,7 +142,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
                                        M.SignalEvent.status.in_(LIVE))).all()
     today.sort(key=lambda e: (e.seen, PRIORITY.index(e.code), -e.first_at.timestamp()))
     # 持股風險：注意／警示／出場候選
-    risk_codes = ("POS_WEAK", "RISK", "EXIT")
+    risk_codes = ("POS_WEAK", "EXIT", "TREND_DOWN", "RISK")
     risk = []
     for iid in holdings:
         ev = db.scalars(base.where(M.SignalEvent.instrument_id == iid, M.SignalEvent.code.in_(risk_codes),
@@ -228,9 +223,10 @@ def weekly(instrument_id: str, request: Request, weeks: int = 156, basis: str = 
     th = S.Thresholds(rvol_up=rule.rvol_up) if rule else S.Thresholds()
     points = []
     for i in range(max(start, 2), n):
-        ev = S.classify_week(i, c.macd.hist, c.closes, c.ma[20], c.rvol, th, warmup_index=params.warmup_weeks - 1)
-        for code in (S.NEG_WEAK, S.POS_WEAK):
-            if code in ev.codes:
+        ev = S.classify_week(i, c.macd.hist, c.closes, c.ma[20], c.rvol, th, warmup_index=params.warmup_weeks - 1,
+                             dif=c.macd.dif, dea=c.macd.dea, ma10=c.ma[10])
+        for code in ev.codes:
+            if code in (S.CROSS, S.EXIT, S.TREND_UP, S.TREND_DOWN):  # 圖上只標交易候選與趨勢確認，早期預警太密
                 points.append({"week_key": str(c.weeks[i].week_key), "code": code, "hist": c.macd.hist[i],
                                "close": c.weeks[i].close, "status": c.weeks[i].status})
     return ok({"weeks": out, "markers": markers, "points": points, "params": [params.fast, params.slow, params.signal],

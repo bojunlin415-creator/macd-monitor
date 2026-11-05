@@ -17,7 +17,7 @@ def item(code="POS_WEAK", market="TW", kind="event", status="provisional", sym="
 
 
 def test_preview_line_matches_spec_example():
-    assert preview_line(item()) == "【賣出點｜本週暫定】台股 0000 示意股：MACD 柱體由升轉降 ↘"
+    assert preview_line(item()) == "【S1 多頭動能首次減弱｜本週暫定】台股 0000 示意股：正柱比前一週縮短，上漲動能減弱（賣出預警，適合檢查持倉） ↘"
 
 
 def test_text_contains_all_layers():
@@ -44,14 +44,14 @@ def test_uat22_merge_threshold(n, expected_msgs):
 
 
 def test_merge_is_per_market_and_sorted_by_priority():
-    items = [item(sym=f"{i}", code=c) for i, c in enumerate(["NEG_WEAK", "POS_WEAK", "EXIT", "CROSS", "RISK"])]
+    items = [item(sym=f"{i}", code=c) for i, c in enumerate(["NEG_WEAK", "POS_WEAK", "EXIT", "CROSS", "TREND_DOWN"])]
     items.append(item(market="US", sym="AAA"))
     msgs = plan_batch(items)
     assert len(msgs) == 2
     merged = next(m for m in msgs if len(m.item_indexes) == 5)
-    assert merged.text.startswith("【台股盤後】本次 5 檔新訊號：候選 3、警示 1、觀察 1")
-    assert merged.text.splitlines()[1].startswith("賣出點")
-    assert merged.text.splitlines()[2].startswith("買進點")
+    assert merged.text.startswith("【台股盤後】本次 5 檔新訊號：交易候選 2、趨勢確認 1、早期預警 2")
+    assert merged.text.splitlines()[1].startswith("S2 死亡交叉")
+    assert merged.text.splitlines()[2].startswith("B2 黃金交叉")
 
 
 def test_no_english_status_words():

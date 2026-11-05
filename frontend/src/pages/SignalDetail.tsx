@@ -18,11 +18,13 @@ const CONCLUSION: Record<string, string> = {
 };
 
 const REL: Record<string, string[]> = {
-  POS_WEAK: ["pos_shrink", "volume_down_price", "break_ma20"],
+  NEG_WEAK: ["neg_shrink"],
+  CROSS: ["golden_cross", "dif_up", "above_ma10"],
+  TREND_UP: ["trend_up", "above_ma20"],
+  POS_WEAK: ["pos_shrink"],
+  EXIT: ["death_cross", "below_ma10", "below_ma20"],
+  TREND_DOWN: ["trend_down", "below_ma20"],
   RISK: ["pos_shrink", "weak_background", "volume_down_price", "break_ma20"],
-  EXIT: ["death_cross", "volume_down_price", "break_ma20"],
-  NEG_WEAK: ["neg_shrink", "golden_cross", "above_ma20", "price_up", "volume_up"],
-  CROSS: ["golden_cross", "above_ma20", "price_up", "volume_up"],
   ENTRY: ["golden_cross", "above_ma20", "price_up", "volume_up"],
 };
 

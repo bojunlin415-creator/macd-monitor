@@ -110,7 +110,7 @@ def test_rules_validation_and_conflict(env):
 def test_prefs_cannot_mute_mandatory(env):
     c = login("member@example.com")
     r = c.put("/api/v1/me/preferences", json={"muted_codes": ["POS_WEAK"]})
-    assert r.status_code == 422
+    assert r.status_code == 200  # 六訊號版：每種訊號都可關閉
     r = c.put("/api/v1/me/preferences", json={"muted_codes": ["CROSS"], "theme": "dark", "merge_threshold": 7})
     d = r.json()["data"]
     assert d["notify"]["muted_codes"] == ["CROSS"] and d["theme"] == "dark"

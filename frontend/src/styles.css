@@ -107,7 +107,7 @@ h3 { font-size: 17px; margin: 0 0 8px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
 .badge .lv { border-radius: 6px; padding: 1px 8px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
 .badge .dir { color: var(--text-2); font-weight: 500; }
-.lv-observe { --c: var(--observe); } .lv-attention { --c: var(--attention); } .lv-warning { --c: var(--warning); } .lv-candidate { --c: var(--candidate); }
+.lv-observe { --c: var(--observe); } .lv-attention { --c: var(--attention); } .lv-warning { --c: var(--warning); } .lv-candidate { --c: var(--candidate); } .lv-trend { --c: var(--attention); }
 .status { display: inline-block; font-size: 13px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--text-2); color: var(--text-2); white-space: nowrap; }
 .status.provisional { border-style: dashed; }
 .status.confirmed { background: var(--text-2); color: var(--surface); }

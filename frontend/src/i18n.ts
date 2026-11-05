@@ -1,21 +1,25 @@
 // 介面文案對照表（規格 9.7）。內部值一律經此轉為介面文字；新增狀態必須先加入本表。
 export const SIGNAL_NAME: Record<string, string> = {
-  NEG_WEAK: "買進點",
-  CROSS: "金叉（未達候選）",
-  POS_WEAK: "賣出點",
-  RISK: "弱化確認",
-  ENTRY: "進場候選",
-  EXIT: "出場候選",
+  NEG_WEAK: "B1 空方動能減弱",
+  CROSS: "B2 黃金交叉",
+  TREND_UP: "B3 多頭趨勢確認",
+  POS_WEAK: "S1 多頭動能首次減弱",
+  EXIT: "S2 死亡交叉",
+  TREND_DOWN: "S3 空頭趨勢確認",
+  RISK: "弱化確認（舊版）",
+  ENTRY: "進場候選（舊版）",
 };
 export const SIGNAL_SENTENCE: Record<string, string> = {
-  NEG_WEAK: "MACD 柱體由降轉升",
-  CROSS: "DIF 向上穿越 DEA，尚未符合進場候選",
-  POS_WEAK: "MACD 柱體由升轉降",
+  NEG_WEAK: "負柱開始往零軸靠近，下跌動能可能減弱（早期觀察，還不是確認買點）",
+  CROSS: "DIF 向上突破 DEA（買進候選，建議再看 DIF 是否上升、是否站上 10 週線）",
+  TREND_UP: "DIF、DEA 皆大於零，正柱持續擴大且站在 20 週線上方（趨勢型買點）",
+  POS_WEAK: "正柱比前一週縮短，上漲動能減弱（賣出預警，適合檢查持倉）",
+  EXIT: "DIF 向下跌破 DEA（賣出候選；同時跌破 10 或 20 週線時風險更強）",
+  TREND_DOWN: "DIF、DEA 皆小於零，負柱持續擴大且低於 20 週線（風險較高）",
   RISK: "買方減弱後出現放量下跌或跌破 MA20",
   ENTRY: "金叉且站上 MA20、價漲放量",
-  EXIT: "死叉或弱化背景下放量跌破 MA20",
 };
-export const LEVEL: Record<string, string> = { observe: "觀察", attention: "注意", warning: "警示", candidate: "候選" };
+export const LEVEL: Record<string, string> = { observe: "早期預警", candidate: "交易候選", trend: "趨勢確認", attention: "注意", warning: "警示" };
 export const DIRECTION: Record<string, string> = { bullish: "偏多", bearish: "偏空" };
 export const ARROW: Record<string, string> = { bullish: "↗", bearish: "↘" };
 export const EVENT_STATUS: Record<string, string> = {
@@ -54,6 +58,12 @@ export const CONDITION: Record<string, string> = {
   volume_up: "放量",
   volume_down_price: "放量下跌",
   weak_background: "弱化背景",
+  dif_up: "DIF 上升",
+  above_ma10: "站上 10 週線",
+  below_ma10: "跌破 10 週線",
+  below_ma20: "低於 20 週線",
+  trend_up: "DIF、DEA 大於零且正柱擴大",
+  trend_down: "DIF、DEA 小於零且負柱擴大",
 };
 export const CONDITION_STATE: Record<string, string> = { met: "已符合", not_met: "未符合", no_data: "資料不足" };
 export const CONDITION_ICON: Record<string, string> = { met: "✓", not_met: "✕", no_data: "？" };
@@ -78,7 +88,7 @@ export const WEAKEN_NOTE = "「減弱」指柱體動能，不代表價格必然�
 export const DISCLAIMER =
   "本系統提供週線技術資訊與歷史分析，不自動下單。暫定訊號可能於週末失效，歷史表現不代表未來報酬。請留意資料截止時間、來源限制與自身風險承受能力。";
 export const LEVEL_OF: Record<string, string> = {
-  NEG_WEAK: "candidate", CROSS: "observe", POS_WEAK: "candidate", RISK: "warning", ENTRY: "candidate", EXIT: "candidate",
+  NEG_WEAK: "observe", POS_WEAK: "observe", CROSS: "candidate", EXIT: "candidate", TREND_UP: "trend", TREND_DOWN: "trend", RISK: "warning", ENTRY: "candidate",
 };
 
 const WD = "日一二三四五六";

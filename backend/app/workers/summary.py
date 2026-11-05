@@ -31,7 +31,7 @@ def queue_weekly_summaries(db: Session, today: date) -> int:
         invalid = sum(1 for e in evs if e.status == "invalidated")
         from app.api.signals import _holdings
         held = _holdings(db, b.user_id)
-        risk = sum(1 for e in evs if e.instrument_id in held and e.code in ("POS_WEAK", "RISK", "EXIT") and e.status == "confirmed")
+        risk = sum(1 for e in evs if e.instrument_id in held and e.code in ("POS_WEAK", "EXIT", "TREND_DOWN", "RISK") and e.status == "confirmed")
         missing = [f"{w.instrument.symbol} {w.instrument.name}" for w in
                    db.scalars(select(M.WatchlistItem).where(M.WatchlistItem.user_id == b.user_id))
                    if w.instrument.state == "quality_failed"]

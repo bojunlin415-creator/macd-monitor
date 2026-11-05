@@ -16,7 +16,7 @@ export interface SignalEvent {
 
 // 訊號徽章：[等級色塊＋等級字] [↗／↘ 偏多／偏空]；候選級顯示「進場候選／出場候選」
 export function SignalBadge({ code, level, direction }: { code: string; level: string; direction: string }) {
-  const label = level === "candidate" ? SIGNAL_NAME[code] : LEVEL[level];
+  const label = SIGNAL_NAME[code] ?? LEVEL[level];
   return (
     <span className={`badge lv-${level}`}>
       <span className="lv">{label}</span>
