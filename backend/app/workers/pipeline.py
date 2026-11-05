@@ -82,7 +82,7 @@ def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of:
 
     q = select(M.Instrument).where(M.Instrument.market_id == market, M.Instrument.delisted_on.is_(None))
     insts = [i for i in db.scalars(q) if instrument_ids is None or i.id in instrument_ids]
-    n_bars, errors, deferred = 0, [], 0
+    n_bars, errors, deferred, n_actions = 0, [], 0, []
     t0 = time.monotonic()
     for inst in insts:
         last = db.scalar(select(M.DailyBarRow.date).where(M.DailyBarRow.instrument_id == inst.id)
@@ -111,6 +111,8 @@ def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of:
         have = {(a.effective_date, a.type) for a in db.scalars(select(M.CorporateActionRow).where(M.CorporateActionRow.instrument_id == inst.id))}
         for a in actions:
             if (a.effective_date, a.kind) not in have:
+                have.add((a.effective_date, a.kind))
+                n_actions.append(f"{inst.symbol} {a.effective_date} {a.kind} ×{a.price_factor:.4f}")
                 db.add(M.CorporateActionRow(instrument_id=inst.id, effective_date=a.effective_date, type=a.kind,
                                             price_factor=a.price_factor, volume_factor=a.volume_factor))
     mk = db.get(M.Market, market)
@@ -118,7 +120,7 @@ def ingest_market(db: Session, provider: MarketDataProvider, market: str, as_of:
     mk.last_success_at = datetime.now(timezone.utc)
     mk.data_state = "ok"
     db.flush()
-    return {"instruments": len(insts), "bars": n_bars, "errors": errors, "deferred": deferred}
+    return {"instruments": len(insts), "bars": n_bars, "errors": errors, "deferred": deferred, "actions": n_actions}
 
 
 # ---- 計算 ---------------------------------------------------------------
@@ -402,9 +404,10 @@ def run_market(db: Session, provider: MarketDataProvider, market: str, as_of: da
         log.exception("市場作業失敗 %s", key)
     job.heartbeat_at = datetime.now(timezone.utc)
     ing = (job.detail or {}).get("ingest", {})
-    log.info("盤後作業 %s 來源=%s 狀態=%s 股票=%s 日線=%s 失敗=%s 延後=%s 錯誤=%s",
+    log.info("盤後作業 %s 來源=%s 狀態=%s 股票=%s 日線=%s 失敗=%s 延後=%s 新增除權息分割=%s 錯誤=%s",
              key, getattr(provider, "source", "?"), job.status, ing.get("instruments"), ing.get("bars"),
-             len(ing.get("errors") or []), ing.get("deferred"), (ing.get("errors") or [])[:3] or job.error)
+             len(ing.get("errors") or []), ing.get("deferred"), (ing.get("actions") or [])[:10],
+             (ing.get("errors") or [])[:3] or job.error)
     return job
 
 
