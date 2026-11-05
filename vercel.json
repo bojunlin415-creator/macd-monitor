@@ -26,11 +26,11 @@
   "crons": [
     {
       "path": "/api/v1/cron/market/TW",
-      "schedule": "30 10 * * 1-5"
+      "schedule": "0 11 * * 1-5"
     },
     {
       "path": "/api/v1/cron/market/JP",
-      "schedule": "0 7 * * 1-5"
+      "schedule": "0 8 * * 1-5"
     },
     {
       "path": "/api/v1/cron/market/US",
