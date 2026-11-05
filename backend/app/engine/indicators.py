@@ -13,6 +13,9 @@ ENGINE_VERSION = "1.0.0"
 Num = Optional[float]
 
 
+MAX_WARMUP_WEEKS = 104  # 暖機門檻最多 2 年（使用者決定）
+
+
 @dataclass(frozen=True)
 class MacdParams:
     fast: int = 12
@@ -30,8 +33,8 @@ class MacdParams:
 
     @property
     def warmup_weeks(self) -> int:
-        """W = max(60, 5s + g)；預設 12/26/9 為 139 週。"""
-        return max(60, 5 * self.slow + self.signal)
+        """W = min(104, max(60, 5s + g))：最多要求 2 年（104 週）資料；預設 12/26/9 為 104 週。"""
+        return min(MAX_WARMUP_WEEKS, max(60, 5 * self.slow + self.signal))
 
 
 def ema(values: Sequence[Num], n: int) -> list[Num]:

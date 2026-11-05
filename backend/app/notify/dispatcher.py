@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import models as M
+from app.membership import plan_of
 from app.engine.signals import PRIORITY
 from app.notify.crypto import decrypt
 from app.notify.line_messages import ConditionLine, NotificationItem, plan_batch
@@ -43,11 +44,12 @@ def item_from_payload(p: dict, kind: str, as_of: Optional[date]) -> Notification
     )
 
 
-def dispatch_pending(db: Session, client, now: Optional[datetime] = None) -> dict:
+def dispatch_pending(db: Session, client, now: Optional[datetime] = None, user_id: Optional[str] = None) -> dict:
     now = now or _now()
-    rows = db.scalars(select(M.NotificationOutbox).where(
-        M.NotificationOutbox.status.in_(["pending", "retry"]))
-        .order_by(M.NotificationOutbox.created_at)).all()
+    q = select(M.NotificationOutbox).where(M.NotificationOutbox.status.in_(["pending", "retry"]))
+    if user_id:  # 只送某位使用者的佇列（綁定完成、測試訊息時立即送出）
+        q = q.where(M.NotificationOutbox.user_id == user_id)
+    rows = db.scalars(q.order_by(M.NotificationOutbox.created_at)).all()
     rows = [r for r in rows if _aware(r.next_attempt_at) <= now]
     by_user: dict[str, list[M.NotificationOutbox]] = {}
     for r in rows:
@@ -64,6 +66,7 @@ def dispatch_pending(db: Session, client, now: Optional[datetime] = None) -> dic
         to = decrypt(binding.line_user_id_enc)
         prefs = db.get(M.NotificationPrefs, user_id)
         threshold = prefs.merge_threshold if prefs else 5
+        threshold = min(threshold, plan_of(db, user).line_merge_max)  # 免費方案較早合併，節省 LINE 訊息量
         # 同股同批次同種類的多個代碼併成一張卡：主標籤＋「也符合」
         groups: dict[tuple, list[M.NotificationOutbox]] = {}
         for r in urows:

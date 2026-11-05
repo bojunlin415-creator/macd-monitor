@@ -10,23 +10,20 @@ from sqlalchemy.orm import Session
 
 from app.db import models as M
 from app.engine import indicators as I
+from app.engine import signals as S
 from app.engine.signals import PRIORITY, SIGNAL_DEFS
 from app.engine.weekly import week_key
 from app.i18n import zh_tw as T
 from app.api.deps import ApiError, current_user, get_db, ok
-from app.api.me import WATCH_LIMIT, instrument_dict, _latest_rule
+from app.api.me import instrument_dict, _latest_rule
+from app.membership import plan_of
 from app.workers.pipeline import compute, load_series
 
 router = APIRouter(tags=["signals"])
 
 LIVE = ("provisional", "confirmed")
 
-UPGRADE_HINTS = {
-    "NEG_WEAK": ("ENTRY", ["golden_cross", "above_ma20", "price_up", "volume_up"]),
-    "CROSS": ("ENTRY", ["above_ma20", "price_up", "volume_up"]),
-    "POS_WEAK": ("RISK", ["volume_down_price", "break_ma20"]),  # 任一
-    "RISK": ("EXIT", ["death_cross", "volume_down_price", "break_ma20"]),
-}
+UPGRADE_HINTS: dict = {}  # 六訊號版不再有「升級」提示，改在條件檢核列出建議再檢查的項目
 
 
 def _holdings(db: Session, user_id: str) -> set[str]:
@@ -61,7 +58,8 @@ def event_dict(db: Session, e: M.SignalEvent, holdings: set[str]) -> dict:
 
 def _market_status(db: Session) -> list[dict]:
     out = []
-    for m in db.scalars(select(M.Market).order_by(M.Market.id)):
+    order = {"TW": 0, "US": 1, "JP": 2}
+    for m in sorted(db.scalars(select(M.Market)), key=lambda m: order.get(m.id, 9)):
         out.append({"id": m.id, "data_cutoff": str(m.data_cutoff) if m.data_cutoff else None, "state": m.data_state,
                     "last_success_at": m.last_success_at.isoformat() if m.last_success_at else None})
     return out
@@ -144,7 +142,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
                                        M.SignalEvent.status.in_(LIVE))).all()
     today.sort(key=lambda e: (e.seen, PRIORITY.index(e.code), -e.first_at.timestamp()))
     # 持股風險：注意／警示／出場候選
-    risk_codes = ("POS_WEAK", "RISK", "EXIT")
+    risk_codes = ("POS_WEAK", "EXIT", "TREND_DOWN", "RISK")
     risk = []
     for iid in holdings:
         ev = db.scalars(base.where(M.SignalEvent.instrument_id == iid, M.SignalEvent.code.in_(risk_codes),
@@ -153,8 +151,8 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
             risk.append(event_dict(db, ev, holdings))
     watched = db.scalars(select(M.WatchlistItem).where(M.WatchlistItem.user_id == user.id)).all()
     this_weeks = list(latest_week.values())
-    counts = {"watched": len(watched), "limit": WATCH_LIMIT, "provisional": 0, "confirmed": 0,
-              "unable": sum(1 for w in watched if w.instrument.state == "quality_failed"),
+    counts = {"watched": len(watched), "limit": plan_of(db, user).watch_limit, "provisional": 0, "confirmed": 0,
+              "unable": sum(1 for w in watched if w.instrument.state in ("quality_failed", "unavailable")),
               "preparing": sum(1 for w in watched if w.instrument.state in ("backfilling", "warmup"))}
     if this_weeks:
         rows = db.execute(select(M.SignalEvent.status, func.count()).where(
@@ -163,7 +161,7 @@ def overview(request: Request, user: M.User = Depends(current_user), db: Session
         for s, n in rows:
             if s in counts:
                 counts[s] = n
-    recent = db.scalars(base.order_by(M.SignalEvent.week_key.desc(), M.SignalEvent.first_at.desc()).limit(30)).all()
+    recent = db.scalars(base.order_by(M.SignalEvent.week_key.desc(), M.SignalEvent.first_at.desc()).limit(10)).all()
     b = db.get(M.LineBinding, user.id)
     p = db.get(M.NotificationPrefs, user.id)
     return ok({
@@ -221,6 +219,16 @@ def weekly(instrument_id: str, request: Request, weeks: int = 156, basis: str = 
                                                  M.SignalEvent.is_primary.is_(True))).all()
     markers = [{"id": e.id, "week_key": str(e.week_key), "code": e.code, "level": e.level, "direction": e.direction,
                 "status": e.status} for e in evs]
-    return ok({"weeks": out, "markers": markers, "params": [params.fast, params.slow, params.signal],
+    # 依目前規則回算歷史買進／賣出點（只顯示在圖上，不發通知）
+    th = S.Thresholds(rvol_up=rule.rvol_up) if rule else S.Thresholds()
+    points = []
+    for i in range(max(start, 2), n):
+        ev = S.classify_week(i, c.macd.hist, c.closes, c.ma[20], c.rvol, th, warmup_index=params.warmup_weeks - 1,
+                             dif=c.macd.dif, dea=c.macd.dea, ma10=c.ma[10])
+        for code in ev.codes:
+            if code in (S.CROSS, S.EXIT, S.TREND_UP, S.TREND_DOWN):  # 圖上只標交易候選與趨勢確認，早期預警太密
+                points.append({"week_key": str(c.weeks[i].week_key), "code": code, "hist": c.macd.hist[i],
+                               "close": c.weeks[i].close, "status": c.weeks[i].status})
+    return ok({"weeks": out, "markers": markers, "points": points, "params": [params.fast, params.slow, params.signal],
                "state": inst.state, "weeks_available": n, "warmup_weeks": params.warmup_weeks,
                "basis": basis, "raw_last_close": c.raw_last_close}, request)

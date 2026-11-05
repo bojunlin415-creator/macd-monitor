@@ -5,29 +5,34 @@
 from __future__ import annotations
 
 SIGNAL_NAME = {
-    "NEG_WEAK": "賣壓首次減弱",
-    "CROSS": "金叉（未達候選）",
-    "POS_WEAK": "買方首次減弱",
-    "RISK": "弱化確認",
-    "ENTRY": "進場候選",
-    "EXIT": "出場候選",
+    "NEG_WEAK": "B1 空方動能減弱",
+    "CROSS": "B2 黃金交叉",
+    "TREND_UP": "B3 多頭趨勢確認",
+    "POS_WEAK": "S1 多頭動能首次減弱",
+    "EXIT": "S2 死亡交叉",
+    "TREND_DOWN": "S3 空頭趨勢確認",
+    "RISK": "弱化確認（舊版）",
+    "ENTRY": "進場候選（舊版）",
 }
 
 # 一句話原因（LINE 預覽行與卡片第 3 行）
 SIGNAL_SENTENCE = {
-    "NEG_WEAK": "賣壓動能首次減弱",
-    "CROSS": "DIF 向上穿越 DEA，尚未符合進場候選",
-    "POS_WEAK": "買方動能首次減弱",
+    "NEG_WEAK": "負柱開始往零軸靠近，下跌動能可能減弱（早期觀察，還不是確認買點）",
+    "CROSS": "DIF 向上突破 DEA（買進候選，建議再看 DIF 是否上升、是否站上 10 週線）",
+    "TREND_UP": "DIF、DEA 皆大於零，正柱持續擴大且站在 20 週線上方（趨勢型買點）",
+    "POS_WEAK": "正柱比前一週縮短，上漲動能減弱（賣出預警，適合檢查持倉）",
+    "EXIT": "DIF 向下跌破 DEA（賣出候選；同時跌破 10 或 20 週線時風險更強）",
+    "TREND_DOWN": "DIF、DEA 皆小於零，負柱持續擴大且低於 20 週線（風險較高）",
     "RISK": "買方減弱後出現放量下跌或跌破 MA20",
     "ENTRY": "金叉且站上 MA20、價漲放量",
-    "EXIT": "死叉或弱化背景下放量跌破 MA20",
 }
 
 LEVEL = {
-    "observe": "觀察",
+    "observe": "早期預警",
+    "candidate": "交易候選",
+    "trend": "趨勢確認",
     "attention": "注意",
     "warning": "警示",
-    "candidate": "候選",
 }
 
 DIRECTION = {"bullish": "偏多", "bearish": "偏空"}
@@ -83,6 +88,12 @@ CONDITION = {
     "volume_up": "放量",
     "volume_down_price": "放量下跌",
     "weak_background": "弱化背景",
+    "dif_up": "DIF 上升",
+    "above_ma10": "站上 10 週線",
+    "below_ma10": "跌破 10 週線",
+    "below_ma20": "低於 20 週線",
+    "trend_up": "DIF、DEA 大於零且正柱擴大",
+    "trend_down": "DIF、DEA 小於零且負柱擴大",
 }
 
 CONDITION_STATE = {"met": "已符合", "not_met": "未符合", "no_data": "資料不足"}
@@ -98,9 +109,9 @@ TERMS = {
     "censored": "觀察期未滿",
 }
 
-RISK_NOTE = "本資訊為週線技術分析，非交易指令。"
+RISK_NOTE = "本資訊為週線技術分析，不構成投資建議。"
 WEAKEN_NOTE = "「減弱」指柱體動能，不代表價格必然反向。"
-PROVISIONAL_RISK = "週線尚未完成，訊號可能於週末失效；非交易指令。"
+PROVISIONAL_RISK = "週線尚未完成，訊號可能於週末失效；不構成投資建議。"
 
 DISCLAIMER = (
     "本系統提供週線技術資訊與歷史分析，不自動下單。暫定訊號可能於週末失效，"

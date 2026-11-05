@@ -73,8 +73,9 @@ def test_uat03_macd_matches_reference_and_warmup():
         assert abs(m.dif[i] - dif[i]) <= tol and abs(m.dea[i] - dea[i]) <= tol
     assert m.dif[24] is None and m.dif[25] is not None
     assert m.dea[32] is None and m.dea[33] is not None
-    assert I.MacdParams().warmup_weeks == 139
-    assert not I.warmup_ok(137) and I.warmup_ok(138)
+    assert I.MacdParams().warmup_weeks == 104
+    assert not I.warmup_ok(102) and I.warmup_ok(103)
+    assert I.MacdParams(5, 10, 5).warmup_weeks == 60
 
 
 def test_param_validation():
@@ -118,54 +119,22 @@ def test_uat05_neg_weak_without_volume():
     assert S.ENTRY not in ev.codes
 
 
-# ---- UAT-06 進場候選 vs 金叉（觀察）-------------------------------------
-@pytest.mark.parametrize("rv,expect", [(1.20, S.ENTRY), (1.19, S.CROSS)])
-def test_uat06_entry_vs_cross(rv, expect):
-    h = [-0.3, -0.1, 0.1]
-    closes = [95.0, 98.0, 100.0]
-    ma20 = [96.0, 97.0, 97.5]
-    ev = classify(h, closes, ma20, [None, None, rv])
-    assert ev.primary == expect
-    assert S.SIGNAL_DEFS[S.CROSS] == (S.LEVEL_OBSERVE, S.DIR_BULL)
 
 
-def test_cross_without_volume_data_does_not_upgrade():
-    ev = classify([-0.3, -0.1, 0.1], [95.0, 98.0, 100.0], [96.0, 97.0, 97.5], [None] * 3)
-    assert ev.primary == S.CROSS
-
-
-# ---- UAT-07 買方減弱 → 警示 → 出場候選 -----------------------------------
-def test_uat07_pos_weak_then_risk_then_exit():
-    # 第 2 週正柱首次縮短，無量價 → 注意
-    ev = classify([0.8, 1.0, 0.9], [100, 101, 102], [90, 91, 92], [None, None, 1.0])
-    assert ev.primary == S.POS_WEAK
-    # 第 3 週（背景期內）放量下跌 → 警示
-    ev = classify([0.8, 1.0, 0.9, 0.7], [100, 101, 102, 99], [90, 91, 92, 93], [None, None, 1.0, 1.5])
-    assert ev.primary == S.RISK and S.EXIT not in ev.codes
-    # 跌破 MA20（不放量）→ 警示
-    ev = classify([0.8, 1.0, 0.9, 0.7], [100, 101, 102, 91], [90, 91, 92, 93], [None, None, 1.0, 0.9])
-    assert ev.primary == S.RISK
-    # 放量下跌且跌破 MA20 → 出場候選
-    ev = classify([0.8, 1.0, 0.9, 0.7], [100, 101, 102, 91], [90, 91, 92, 93], [None, None, 1.0, 1.5])
-    assert ev.primary == S.EXIT and S.RISK in ev.codes
-    # 死叉 → 出場候選
-    ev = classify([0.8, 1.0, 0.5, -0.2])
-    assert ev.primary == S.EXIT
-
-
-def test_priority_order():
-    assert S.sort_by_priority([S.NEG_WEAK, S.CROSS, S.POS_WEAK, S.ENTRY, S.RISK, S.EXIT]) == S.PRIORITY
 
 
 # ---- 補充：連續縮短只發一次 -------------------------------------------
 def test_continuous_shrink_only_first_segment():
     h = [0.5, 1.2, 1.0, 0.8, 1.1, 0.9]
     fired = [t for t in range(2, len(h)) if S.POS_WEAK in classify(h, t=t).codes]
-    assert fired == [2, 5]
+    assert fired == [2, 5]  # S1：每一段連續縮短的第一週
+
+
 
 
 def test_cross_zero_is_not_shrink():
-    assert S.NEG_WEAK not in classify([-0.5, -0.2, 0.3]).codes
+    ev = classify([-0.5, -0.2, 0.3])
+    assert ev.cond("neg_shrink").state == S.NOT_MET  # 翻正不算負柱縮短
 
 
 def test_warmup_blocks_signals():
@@ -237,3 +206,52 @@ def test_uat15_moving_average_cost():
     assert p.quantity == 15 and p.cost_basis == pytest.approx(1665)
     with pytest.raises(OversellError):
         p.apply(Transaction(SELL, d + timedelta(3), 16, 130, 0))
+
+
+
+# ---- 六訊號（2026-11-04 使用者定案）--------------------------------------
+def six(h, closes=None, ma20=None, ma10=None, dif=None, dea=None, t=None):
+    n = len(h)
+    closes = closes or [100.0] * n
+    return S.classify_week(n - 1 if t is None else t, h, closes, ma20 or [None] * n, [None] * n, warmup_index=0,
+                           dif=dif, dea=dea, ma10=ma10)
+
+
+def test_b1_and_s1_fire_on_first_week_only():
+    h = [-1.0, -2.0, -1.5, -1.0, -1.2, -0.8]
+    b1 = [t for t in range(2, len(h)) if S.NEG_WEAK in six(h, t=t).codes]
+    assert b1 == [2, 5]
+    h = [1.0, 2.0, 1.5, 1.0]
+    assert [t for t in range(2, len(h)) if S.POS_WEAK in six(h, t=t).codes] == [2]
+
+
+def test_b2_golden_cross_checks_dif_and_ma10():
+    ev = six([-0.3, -0.1, 0.2], closes=[95.0, 98.0, 100.0], ma10=[97.0, 97.0, 98.0], dif=[1.0, 1.2, 1.5])
+    assert ev.primary == S.CROSS and S.SIGNAL_DEFS[S.CROSS] == (S.LEVEL_CANDIDATE, S.DIR_BULL)
+    assert ev.cond("dif_up").state == S.MET and ev.cond("above_ma10").state == S.MET
+
+
+def test_s2_death_cross_with_ma_break():
+    ev = six([0.3, 0.1, -0.2], closes=[100.0, 99.0, 90.0], ma10=[95.0, 95.0, 95.0], ma20=[94.0, 94.0, 94.0])
+    assert ev.primary == S.EXIT and ev.cond("below_ma10").state == S.MET and ev.cond("below_ma20").state == S.MET
+
+
+def test_b3_trend_up_first_week_only():
+    h = [0.2, 0.5, 0.9, 1.4, 2.0]
+    dif = [1.0] * 5
+    dea = [0.5] * 5
+    closes = [100.0] * 5
+    ma20 = [90.0] * 5
+    fired = [t for t in range(2, 5) if S.TREND_UP in six(h, closes, ma20, dif=dif, dea=dea, t=t).codes]
+    assert fired == [2]  # 第 2 週起條件持續成立，只在第一週發
+    assert S.TREND_UP not in six(h, closes, [110.0] * 5, dif=dif, dea=dea).codes  # 低於 20 週線不成立
+
+
+def test_s3_trend_down():
+    h = [-0.2, -0.5, -0.9]
+    ev = six(h, [100.0] * 3, [110.0] * 3, dif=[-1.0] * 3, dea=[-0.5] * 3)
+    assert S.TREND_DOWN in ev.codes and S.SIGNAL_DEFS[S.TREND_DOWN] == (S.LEVEL_TREND, S.DIR_BEAR)
+
+
+def test_priority_order():
+    assert S.sort_by_priority([S.NEG_WEAK, S.TREND_UP, S.CROSS, S.POS_WEAK, S.TREND_DOWN, S.EXIT]) == S.PRIORITY[:6]

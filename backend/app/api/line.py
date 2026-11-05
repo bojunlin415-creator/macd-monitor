@@ -26,6 +26,18 @@ NONCE_TTL = timedelta(minutes=10)
 _SEEN_WEBHOOK_EVENTS: dict[str, float] = {}  # 依事件 ID 防重播（正式環境改用 Redis 或資料表）
 
 
+def _send_now(db: Session, user_id: str) -> None:
+    """先提交，再立即送出這位使用者的佇列；失敗時留在佇列，由排程重試。"""
+    from app.notify.dispatcher import dispatch_pending
+    from app.workers.runner import line_client
+    db.commit()
+    try:
+        dispatch_pending(db, line_client(), user_id=user_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def _code() -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     return "".join(secrets.choice(alphabet) for _ in range(8))
@@ -91,11 +103,8 @@ def bind_from_webhook(db: Session, line_user_id: str, text: str) -> str | None:
     b.status = "active"
     b.link_nonce_hash = None
     b.linked_at = now
-    # 綁定後自動送測試訊息
-    db.add(M.NotificationOutbox(user_id=b.user_id, kind="test", dedupe_key=f"test|{b.user_id}|{now.isoformat()}",
-                                payload_snapshot={"text": "LINE 綁定完成！之後的訊號會即時送到這裡。\n" + T.RISK_NOTE}))
     audit(db, None, "line_link", f"user:{b.user_id}")
-    return None  # 測試訊息由佇列送出
+    return "LINE 綁定完成！之後的訊號會即時送到這裡。\n" + T.RISK_NOTE
 
 
 @router.post("/webhooks/line")
@@ -112,7 +121,11 @@ async def webhook(request: Request, x_line_signature: str = Header("", alias="X-
         _SEEN_WEBHOOK_EVENTS[eid] = datetime.now().timestamp()
         src = ev.get("source", {})
         if ev.get("type") == "message" and ev.get("message", {}).get("type") == "text" and src.get("type") == "user":
-            bind_from_webhook(db, src["userId"], ev["message"]["text"])
+            text = bind_from_webhook(db, src["userId"], ev["message"]["text"])
+            if text and ev.get("replyToken"):
+                db.commit()  # 綁定先寫入，再回覆
+                from app.workers.runner import line_client
+                line_client().reply(ev["replyToken"], text)
         elif ev.get("type") == "unfollow" and src.get("userId"):
             b = db.scalar(select(M.LineBinding).where(M.LineBinding.line_user_hash == blind_index(src["userId"])))
             if b:
@@ -128,7 +141,8 @@ def send_test(request: Request, user: M.User = Depends(current_user), db: Sessio
     now = datetime.now(timezone.utc)
     db.add(M.NotificationOutbox(user_id=user.id, kind="test", dedupe_key=f"test|{user.id}|{now.isoformat()}",
                                 payload_snapshot={"text": "這是一則測試訊息，LINE 通知運作正常。\n" + T.RISK_NOTE}))
-    return ok({"message": "測試訊息已排入，稍後會送達。"}, request)
+    _send_now(db, user.id)
+    return ok({"message": "測試訊息已送出，請查看 LINE。"}, request)
 
 
 @router.get("/line/deliveries")

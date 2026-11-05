@@ -21,6 +21,7 @@ COLORS = {  # 9.6 淺色主題色碼；LINE 不支援深色切換
     "attention": "#9A5B00",
     "warning": "#A1176B",
     "candidate": "#4338CA",
+    "trend": "#9A5B00",
     "text": "#142C45",
     "sub": "#4A5B6E",
     "primary": "#00737A",
@@ -64,8 +65,7 @@ def _num(x: Optional[float], digits: int = 2) -> str:
 
 
 def _level_label(code: str) -> str:
-    level, _ = SIGNAL_DEFS[code]
-    return T.SIGNAL_NAME[code] if level == "candidate" else T.LEVEL[level]
+    return T.SIGNAL_NAME[code]
 
 
 def _who(item: NotificationItem) -> str:
@@ -162,7 +162,8 @@ def merged_preview(market: str, items: Sequence[NotificationItem]) -> str:
     for it in items:
         lv = SIGNAL_DEFS[it.code][0]
         counts[lv] = counts.get(lv, 0) + 1
-    order = ["candidate", "warning", "attention", "observe"]
+    from app.engine.signals import LEVEL_ORDER
+    order = LEVEL_ORDER
     summary = "、".join(f"{T.LEVEL[lv]} {counts[lv]}" for lv in order if lv in counts)
     return f"【{T.MARKET[market]}盤後】本次 {len(items)} 檔新訊號：{summary}"
 

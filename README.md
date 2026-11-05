@@ -36,3 +36,20 @@ python -m pytest                                        # 測試
 `DATABASE_URL`、`SECRET_KEY`、`APP_BASE_URL`、`APP_ENV`（dev／prod）、`LINE_CHANNEL_ACCESS_TOKEN`、
 `LINE_CHANNEL_SECRET`、`LINE_BOT_BASIC_ID`、`LINE_LIVE`（非正式環境要真的推播時設 1）、`DATA_PROVIDER`。
 密鑰不得提交到版本庫。
+
+前端：
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173，/api 代理到 :8000
+```
+
+## 部署（Vercel）
+
+- `vercel.json`：前端建置到 `frontend/dist`，`/api/*` 由 `api/index.py`（FastAPI）處理，其餘路徑回傳 SPA。
+- 排程（Vercel Cron，UTC）：台股 06:00、日股 07:00、美股 22:00（週一至五），每週摘要週六 04:00（台北 12:00）。
+- 必要環境變數：`DATABASE_URL`（或 Vercel／Neon 注入的 `POSTGRES_URL`）、`SECRET_KEY`、`CRON_SECRET`。`APP_ENV` 在 Vercel 上預設為 prod，`APP_BASE_URL` 預設為正式網域。
+- 選用（之後設定）：`RESEND_API_KEY`／`EMAIL_FROM`（寄登入信）、`LINE_CHANNEL_ACCESS_TOKEN`／`LINE_CHANNEL_SECRET`／`LINE_BOT_BASIC_ID`（LINE）。
+- 管理員首次登入：開啟 `/setup`，輸入 Email 與 `CRON_SECRET`；系統尚無管理員時會以該 Email 建立。尚未設定寄信時，邀請連結直接顯示在管理中心。
+- Hobby 方案的 Cron 每天各跑一次，資料未齊時要等隔天補抓；需要每 15 分鐘重試請升級 Pro 後調整排程。
